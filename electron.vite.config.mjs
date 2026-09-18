@@ -1,17 +1,43 @@
-import { resolve } from 'path'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 export default defineConfig({
-  main: {},
+  // Electron main process
+  main: {
+    build: {
+      rollupOptions: {
+        input: resolve(__dirname, 'electron/main.js')
+      }
+    }
+  },
 
-  preload: {},
+  // Electron preload
+  preload: {
+    build: {
+      rollupOptions: {
+        input: resolve(__dirname, 'electron/preload.js')
+      }
+    }
+  },
 
+  // React renderer
   renderer: {
+    root: resolve(__dirname, 'ui'),
+
+    build: {
+      rollupOptions: {
+        input: resolve(__dirname, 'ui/index.html')
+      }
+    },
+
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
+        '@renderer': resolve(__dirname, 'ui')
       }
     },
 

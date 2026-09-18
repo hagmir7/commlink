@@ -9,6 +9,7 @@ export default [
   eslint,
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],
+
   {
     settings: {
       react: {
