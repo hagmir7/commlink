@@ -91,7 +91,7 @@ export default function Home() {
   const handleDelete = async () => {
     if (!selectedRowKey) return
     try {
-      await api.delete(`/documents/${selectedRowKey}`)
+      await api.delete(`/documents/${documentType}/${selectedRowKey}`)
       setSelectedRowKey(null)
       setDocumentType((t) => t)
     } catch (error) {

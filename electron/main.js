@@ -17,7 +17,7 @@ function createWindow() {
     }
   })
 
-  setMainWindow(mainWindow) // ✅ register for modal/parent
+  setMainWindow(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

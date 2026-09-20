@@ -20,6 +20,7 @@ export const handleShow = async (navigate, path, width = 1400, height = 800) => 
   // return;
   try {
     if (window.api) {
+      // await window.api.closeWindow()
       await window.api.openShow({ url: path, width, height })
     } else {
       navigate('layout' + path)

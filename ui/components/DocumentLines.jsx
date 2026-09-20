@@ -48,7 +48,14 @@ const EMPTY_FORM = {
 export const rowId = (record) => `${record.articleRef}-${record.key}`
 
 const DocumentLines = forwardRef(function DocumentLines(
-  { lineItems: initialLineItems, piece, documentType, onSelectionChange },
+  {
+    lineItems: initialLineItems,
+    piece,
+    documentType,
+    onSelectionChange,
+    onUpdate,
+    onLoadingMovemen
+  },
   ref
 ) {
   const { lineItems, setLineItems, addArticles, updateLineItem, removeLineItems } =
@@ -105,6 +112,10 @@ const DocumentLines = forwardRef(function DocumentLines(
     setEditingKey(null)
   }
 
+  const handleOnEnterKeyDown = () => {
+    handleSave()
+  }
+
   async function handleReferenceKeyDown(e) {
     if (e.key !== 'Enter') return
     const reference = formValues.articleRef?.trim()
@@ -150,6 +161,7 @@ const DocumentLines = forwardRef(function DocumentLines(
         lignes: data
       })
       console.log('created lines:', response.data)
+      onUpdate()
     } catch (error) {
       console.error(error)
     }
@@ -202,10 +214,11 @@ const DocumentLines = forwardRef(function DocumentLines(
       await api.post(`documents/${documentType}/${piece}/lignes/update`, payload)
       updateLineItem(editingKey, formValues)
       message.success('Ligne mise à jour')
+      onUpdate()
       resetForm()
     } catch (error) {
-      console.error(error)
-      message.error('Erreur lors de la mise à jour de la ligne')
+      console.error(error?.response?.data)
+      message.error(error?.response?.data?.detail)
     }
   }
 
@@ -227,6 +240,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       removeLineItems(checkedKeys)
       if (editingKey && checkedKeys.some((id) => id.endsWith(`-${editingKey}`))) resetForm()
       setCheckedKeys([])
+      onUpdate()
       message.success('Lignes supprimées')
     } catch (error) {
       console.error(error)
@@ -283,14 +297,16 @@ const DocumentLines = forwardRef(function DocumentLines(
 
   const handleMoveUp = useCallback(async () => {
     if (checkedKeys.length === 0) return
-
+    onLoadingMovemen(true)
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/moveup`, {
         lines: buildMovePayload()
       })
       setLineItems((prev) => reorderLineItems(prev, checkedKeys, true))
       message.success('Lignes déplacées vers le haut')
+      onLoadingMovemen(false)
     } catch (error) {
+      onLoadingMovemen(false)
       console.error(error)
       message.error('Erreur lors du déplacement vers le haut')
     }
@@ -298,14 +314,16 @@ const DocumentLines = forwardRef(function DocumentLines(
 
   const handleMoveDown = useCallback(async () => {
     if (checkedKeys.length === 0) return
-
+    onLoadingMovemen(true)
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/movedown`, {
         lines: buildMovePayload()
       })
       setLineItems((prev) => reorderLineItems(prev, checkedKeys, false))
       message.success('Lignes déplacées vers le bas')
+      onLoadingMovemen(false)
     } catch (error) {
+      onLoadingMovemen(false)
       console.error(error)
       message.error('Erreur lors du déplacement vers le bas')
     }
@@ -382,12 +400,14 @@ const DocumentLines = forwardRef(function DocumentLines(
         values={formValues}
         onFieldChange={handleFieldChange}
         onReferenceKeyDown={handleReferenceKeyDown}
+        onEnterKeyDown={handleOnEnterKeyDown}
         referenceLoading={referenceLoading}
         isEditing={Boolean(editingKey)}
         canDelete={checkedKeys.length > 0}
         onNew={resetForm}
         onDelete={handleDelete}
         onSave={handleSave}
+        piece={piece}
       />
 
       <div ref={tableWrapRef} className="bg-white flex-1 min-h-0">

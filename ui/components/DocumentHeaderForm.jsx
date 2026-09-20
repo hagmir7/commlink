@@ -120,7 +120,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     setRepresentant(document.representant ?? null)
     setNExpedition(document.nExpedition)
     setNDocumentSouche(document.souche ?? 'Souche A')
-    setNDocumentNumero(document.nDocument?.numero ?? '23DE000438')
+    setNDocumentNumero(piece ?? '23DE000438')
     setReference(document.ref ?? '')
     setType(document.type ?? null)
     setPort(document.port ?? '')

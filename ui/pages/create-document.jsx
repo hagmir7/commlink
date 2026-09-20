@@ -1,117 +1,190 @@
-import { useState, useEffect, useRef } from 'react'
-import { Select, Button, message } from 'antd'
-import {
-  MinusOutlined,
-  BorderOutlined,
-  CloseOutlined,
-  DownOutlined,
-  CaretDownOutlined,
-  CaretUpOutlined
-} from '@ant-design/icons'
-import DocumentHeaderForm from '../components/DocumentHeaderForm'
+import { useEffect, useRef, useState } from 'react'
+import { Button, message, Select } from 'antd'
+import { CaretDownOutlined, CaretUpOutlined, DownOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+
+import DocumentHeaderForm from '../components/DocumentHeaderForm'
+import DocumentLines from '../components/DocumentLines'
 import DocumentTotals from '../components/DocumentTotals'
 import { api } from '../utils/api'
-import DocumentLines from '../components/DocumentLines'
+import DocumentBarTitle from '../components/DocumentBarTitle'
 
 export default function CreateDocument() {
   const { piece } = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const documentType = searchParams.get('documentType')
+
   const [document, setDocument] = useState(null)
   const [lineItems, setLineItems] = useState([])
   const [hasSelection, setHasSelection] = useState(false)
+  const [loadingDocument, setLoadingDocument] = useState(false)
+  const [loadingMovement, setLoadingMovement] = useState(false)
+
   const linesRef = useRef(null)
 
-  const navigation = useNavigate()
-  const [searchParams] = useSearchParams()
-  const documentType = searchParams.get('documentType')
+  /**
+   * Fetch document
+   */
+  const fetchDocument = async (currentPiece) => {
+    if (!currentPiece || !documentType) {
+      return
+    }
 
-  const fetchDocument = async (piece) => {
+    setLoadingDocument(true)
+
     try {
-      const response = await api.get(`documents/${documentType}/${piece}`)
-      setDocument(response?.data)
-      setLineItems(response?.data?.lignes)
-    } catch (e) {
-      message.error(e.response?.data?.title || 'Erreur lors de la récupération du document')
-      console.error('Error fetching document:', e.response?.data || e.message)
+      const response = await api.get(`documents/${documentType}/${currentPiece}`)
+
+      const data = response.data
+
+      setDocument(data)
+      setLineItems(data?.lignes ?? [])
+    } catch (error) {
+      const errorData = error.response?.data
+
+      message.error(
+        errorData?.title || errorData?.detail || 'Erreur lors de la récupération du document'
+      )
+
+      setDocument(null)
+      setLineItems([])
+    } finally {
+      setLoadingDocument(false)
     }
   }
 
+  /**
+   * Load document when piece or documentType changes
+   */
   useEffect(() => {
-    if (piece) {
+    if (piece && documentType) {
       fetchDocument(piece)
+    } else {
+      setDocument(null)
+      setLineItems([])
     }
-  }, [piece])
+  }, [piece, documentType])
 
+  /**
+   * Update existing document
+   */
   const update = async (data) => {
+    if (!piece || !documentType) {
+      return
+    }
+
     try {
       const response = await api.patch(`documents/${documentType}/${piece}`, data)
-      message.success('Start Updating successfully')
+
+      message.success('Modification réussie')
+
       return response.data
-    } catch (e) {
-      message.error(e.response?.data?.title)
-      console.error('Error updating document:', e.response?.data || e.message)
-      throw e
+    } catch (error) {
+      const errorData = error.response?.data
+
+      message.error(
+        errorData?.detail || errorData?.title || 'Erreur lors de la modification du document'
+      )
+
+      throw error
     }
   }
 
+  /**
+   * Create new document
+   */
   const create = async (data) => {
+    if (!documentType) {
+      message.error('Type de document manquant')
+      return
+    }
+
     try {
       const response = await api.post('documents', data)
-      navigation(`/documents/${response.data.piece}?documentType=${documentType}`)
+
+      const createdPiece = response.data?.piece
+
+      if (!createdPiece) {
+        throw new Error('Le numéro de pièce est absent de la réponse')
+      }
+
+      navigate(`/documents/${createdPiece}?documentType=${documentType}`)
+
       return response.data
-    } catch (e) {
-      message.error(e.response?.data?.title)
-      console.error('Error creating document:', e.response?.data || e.message)
-      throw e
+    } catch (error) {
+      const errorData = error.response?.data
+
+      message.error(
+        errorData?.title || errorData?.detail || 'Erreur lors de la création du document'
+      )
+      throw error
+    }
+  }
+
+  /**
+   * Handle header validation
+   */
+  const handleValidate = async (data) => {
+    if (piece) {
+      return update(data)
+    }
+
+    return create(data)
+  }
+
+  /**
+   * Handle line selection
+   */
+  const handleSelectionChange = (keys) => {
+    setHasSelection(keys.length > 0)
+  }
+
+  /**
+   * Handle movement loading
+   */
+  const handleLoadingMovement = (loading) => {
+    setLoadingMovement(loading)
+  }
+
+  /**
+   * Refresh document after line update
+   */
+  const handleLinesUpdate = () => {
+    if (piece) {
+      fetchDocument(piece)
     }
   }
 
   return (
     <div
       className="bg-[#f0f0f0] border border-gray-400 shadow-lg w-full h-screen max-h-screen flex flex-col overflow-hidden"
-      style={{ fontFamily: 'Segoe UI, Tahoma, sans-serif' }}
+      style={{
+        fontFamily: 'Segoe UI, Tahoma, sans-serif'
+      }}
     >
       {/* Title bar */}
-      <div className="shrink-0 flex items-center justify-between bg-gradient-to-b from-white to-gray-100 border-b border-gray-300 px-2 py-1">
-        <div className="flex items-center justify-center gap-2">
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold">
-            C
-          </span>
-          {piece ? (
-            <span className="text-md text-gray-800 font-semibold">
-              Bone de commande : {document?.statut} N° {piece} {document?.clientCode}{' '}
-              {document?.clientIntitule}
-            </span>
-          ) : (
-            <span className="text-[13px] text-gray-800">Nouveau Devis</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 text-gray-600">
-          <button className="w-6 h-6 flex items-center justify-center hover:bg-gray-200">
-            <MinusOutlined style={{ fontSize: 10 }} />
-          </button>
-          <button className="w-6 h-6 flex items-center justify-center hover:bg-gray-200">
-            <BorderOutlined style={{ fontSize: 9 }} />
-          </button>
-          <button className="w-6 h-6 flex items-center justify-center hover:bg-red-500 hover:text-white">
-            <CloseOutlined style={{ fontSize: 10 }} />
-          </button>
-        </div>
-      </div>
+      <DocumentBarTitle piece={piece} document={document} />
 
+      {/* Document header */}
       <DocumentHeaderForm
         piece={piece}
         document={document}
         documentType={documentType}
-        onValidate={(data) => (piece ? update(data) : create(data))}
+        loading={loadingDocument}
+        onValidate={handleValidate}
       />
 
+      {/* Document lines */}
       <DocumentLines
         ref={linesRef}
         lineItems={lineItems}
         piece={piece}
         documentType={documentType}
-        onSelectionChange={(keys) => setHasSelection(keys.length > 0)}
+        onSelectionChange={handleSelectionChange}
+        onLoadingMovemen={handleLoadingMovement}
+        onUpdate={handleLinesUpdate}
       />
 
       {/* Bottom action bar */}
@@ -121,32 +194,42 @@ export default function CreateDocument() {
           defaultValue="Actions"
           className="w-24"
           suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-          options={[{ value: 'Actions', label: 'Actions' }]}
+          options={[
+            {
+              value: 'Actions',
+              label: 'Actions'
+            }
+          ]}
         />
+
         <Button
           size="small"
           icon={<CaretUpOutlined />}
-          disabled={!hasSelection}
+          disabled={!hasSelection || loadingMovement}
           title="Monter les lignes sélectionnées"
           onClick={() => linesRef.current?.moveUp()}
         />
+
         <Button
           size="small"
           icon={<CaretDownOutlined />}
-          disabled={!hasSelection}
+          disabled={!hasSelection || loadingMovement}
           title="Descendre les lignes sélectionnées"
           onClick={() => linesRef.current?.moveDown()}
         />
       </div>
 
-      <DocumentTotals />
+      {/* Totals */}
+      <DocumentTotals document={document} />
 
       {/* Footer buttons */}
       <div className="shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-[#f0f0f0]">
         <Button size="small">Nouveau</Button>
-        <Button size="small" type="primary">
+
+        <Button size="small" type="primary" disabled={loadingDocument}>
           OK
         </Button>
+
         <Button size="small">Annuler</Button>
       </div>
     </div>

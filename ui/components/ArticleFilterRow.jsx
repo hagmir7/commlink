@@ -13,12 +13,14 @@ export default function ArticleFilterRow({
   values,
   onFieldChange,
   onReferenceKeyDown,
+  onEnterKeyDown,
   referenceLoading,
   isEditing,
   canDelete,
   onNew,
   onDelete,
-  onSave
+  onSave,
+  piece
 }) {
   return (
     <div className="shrink-0">
@@ -48,9 +50,17 @@ export default function ArticleFilterRow({
                 className="w-full"
                 value={values[key] ?? ''}
                 onChange={(e) => onFieldChange(key, e.target.value)}
-                onKeyDown={isReference ? onReferenceKeyDown : undefined}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (isReference) {
+                      onReferenceKeyDown(e)
+                    } else {
+                      onEnterKeyDown(e)
+                    }
+                  }
+                }}
                 loading={isReference ? referenceLoading : undefined}
-                disabled={isReference ? referenceLoading : false}
+                disabled={isReference ? referenceLoading || isEditing : !piece}
               />
             </div>
           )

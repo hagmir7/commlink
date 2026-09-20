@@ -32,10 +32,10 @@ const Login = () => {
     }
   })
 
-  // Get Electron app version
+  // Get api app version
   useEffect(() => {
-    if (window.electron?.getVersion) {
-      window.electron.getVersion().then(setAppVersion)
+    if (window.api?.getVersion) {
+      window.api.getVersion().then(setAppVersion)
     }
   }, [])
 
@@ -108,8 +108,8 @@ const Login = () => {
         }
       })
 
-      if (window.electron) {
-        await window.electron.user({
+      if (window.api) {
+        await window.api.user({
           user: response.data,
           access_token: token
         })
@@ -291,7 +291,7 @@ const Login = () => {
           </div>
 
           {/* App version */}
-          {window.electron && (
+          {window.api && (
             <div className="flex w-full justify-center">
               <Badge className="relative z-10 text-center font-bold mt-6 text-xs text-white leading-4">
                 v{appVersion}
