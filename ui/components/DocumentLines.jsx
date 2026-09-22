@@ -1,4 +1,4 @@
-import { Empty, Table, message } from 'antd'
+import { Button, Empty, Table, message } from 'antd'
 import {
   forwardRef,
   useCallback,
@@ -15,22 +15,56 @@ import ArticleSearchModal from './ArticleSearchModal'
 import ColumnResizeHandle from './ColumnResizeHandle'
 import { api } from '../utils/api'
 
+const renderCell = (value) => {
+  if (value === 0 || value === '' || value === null || value === undefined) {
+    return ''
+  }
+  return value
+}
+
 const COLUMN_DEFS = [
-  { key: 'articleRef', title: 'Référence', defaultWidth: 95, placeholder: 'Référence' },
-  { key: 'designation', title: 'Désignation', defaultWidth: 280, placeholder: 'Désignation' },
-  { key: 'hauteur', title: 'Hauteur', defaultWidth: 100, placeholder: 'Hauteur' },
-  { key: 'largeur', title: 'Largeur', defaultWidth: 100, placeholder: 'Largeur' },
-  { key: 'chant', title: 'Chant', defaultWidth: 50, placeholder: 'Chant' },
+  { key: 'articleRef', title: 'Référence', defaultWidth: 100, placeholder: 'Référence' },
+  { key: 'designation', title: 'Désignation', defaultWidth: 500, placeholder: 'Désignation' },
+  {
+    key: 'hauteur',
+    title: 'Hauteur',
+    defaultWidth: 100,
+    placeholder: 'Hauteur',
+    render: renderCell
+  },
+  {
+    key: 'largeur',
+    title: 'Largeur',
+    defaultWidth: 100,
+    placeholder: 'Largeur',
+    render: renderCell
+  },
+  { key: 'chant', title: 'Chant', defaultWidth: 80, placeholder: 'Chant' },
   { key: 'couleur', title: 'Couleur', defaultWidth: 100, placeholder: 'Couleur' },
-  { key: 'prixUnitaire', title: 'P.U. HT', defaultWidth: 90, placeholder: 'P.U. HT' },
-  { key: '', title: 'P.U. TTC', defaultWidth: 70, placeholder: 'P.U. TTC' },
+  { key: 'prixUnitaire', title: 'P.U. HT', defaultWidth: 100, placeholder: 'P.U. HT' },
+  { key: '', title: 'P.U. TTC', defaultWidth: 100, placeholder: 'P.U. TTC' },
   { key: 'quantite', title: 'Quantité', defaultWidth: 80, placeholder: 'Quantité' },
-  { key: 'qteColisee', title: 'Qté colisée', defaultWidth: 80, placeholder: 'Qté colisée' },
-  { key: 'remise', title: 'Remise', defaultWidth: 70, placeholder: 'Remise' }
+  { key: 'quantityColisee', title: 'Qté colisée', defaultWidth: 100, placeholder: 'Qté colisée' },
+  {
+    key: 'conditionnement',
+    title: 'Conditionnement',
+    defaultWidth: 150,
+    placeholder: 'Conditionnement'
+  },
+  { key: 'remise', title: 'Remise', defaultWidth: 60, placeholder: 'Remise' },
+  { key: 'description', title: 'Description', defaultWidth: 200, placeholder: 'Description' },
+  { key: 'profondeur', title: 'Profondeur', defaultWidth: 100, placeholder: 'Profondeur' }
 ]
 
 const MIN_COLUMN_WIDTH = 50
 const VAT_RATE = 1.2
+
+/**
+ * Width of the checkbox column injected by `rowSelection`.
+ * The inputs row reserves the same width so the first input aligns with the
+ * first data column.
+ */
+const SELECTION_COLUMN_WIDTH = 32
 
 const EMPTY_FORM = {
   articleRef: '',
@@ -41,8 +75,11 @@ const EMPTY_FORM = {
   couleur: '',
   prixUnitaire: '',
   quantite: '',
-  qteColisee: '',
-  remise: ''
+  quantityColisee: '',
+  conditionnement: '',
+  remise: '',
+  description: '',
+  profondeur: ''
 }
 
 export const rowId = (record) => `${record.articleRef}-${record.key}`
@@ -71,30 +108,41 @@ const DocumentLines = forwardRef(function DocumentLines(
   const [referenceLoading, setReferenceLoading] = useState(false)
   const [searchModal, setSearchModal] = useState({ open: false, query: '' })
 
-  const totalWidth = useMemo(() => Object.values(widths).reduce((sum, w) => sum + w, 0), [widths])
+  const [conditionnementOptions, setConditionnementOptions] = useState([])
+  const [conditionnementMeta, setConditionnementMeta] = useState({})
 
-  const tableWrapRef = useRef(null)
-  const [bodyHeight, setBodyHeight] = useState(300)
+  /**
+   * Exact sum of every column width (checkbox + data columns).
+   * Used as the table's fixed width and as the minimum width of the wrapper,
+   * so the inputs row and the table columns can never drift apart.
+   */
+  const totalWidth = useMemo(
+    () => SELECTION_COLUMN_WIDTH + COLUMN_DEFS.reduce((sum, col) => sum + widths[col.key], 0),
+    [widths]
+  )
 
-  // Notify parent whenever the selection changes
+  /**
+   * Measured height of the sticky filter row. The table header sticks right
+   * below it (top: filterRowHeight) so headers stay visible while scrolling.
+   */
+  const filterRowRef = useRef(null)
+  const [filterRowHeight, setFilterRowHeight] = useState(0)
+
   useEffect(() => {
-    onSelectionChange?.(checkedKeys)
-  }, [checkedKeys, onSelectionChange])
-
-  useEffect(() => {
-    const el = tableWrapRef.current
+    const el = filterRowRef.current
     if (!el) return undefined
 
-    const HEADER_ROW_HEIGHT = 39
-    const updateHeight = () => {
-      const available = el.clientHeight - HEADER_ROW_HEIGHT
-      setBodyHeight(Math.max(120, available))
-    }
+    const updateHeight = () => setFilterRowHeight(el.offsetHeight)
     updateHeight()
+
     const observer = new ResizeObserver(updateHeight)
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    onSelectionChange?.(checkedKeys)
+  }, [checkedKeys, onSelectionChange])
 
   function resizeColumn(key, startWidth, delta) {
     setWidths((prev) => ({
@@ -110,6 +158,8 @@ const DocumentLines = forwardRef(function DocumentLines(
   function resetForm() {
     setFormValues(EMPTY_FORM)
     setEditingKey(null)
+    setConditionnementOptions([])
+    setConditionnementMeta({})
   }
 
   const handleOnEnterKeyDown = () => {
@@ -125,9 +175,11 @@ const DocumentLines = forwardRef(function DocumentLines(
     try {
       const matches = await findArticleByReference(reference)
       if (matches.length === 1) {
-        addArticles(matches[0])
+        const article = matches[0]
+        addArticles(article)
         addLines([{ reference, quantite: 1 }])
-        message.success(`Article "${matches[0].reference}" ajouté`)
+
+        message.success(`Article "${article.reference}" ajouté`)
         resetForm()
       } else {
         setSearchModal({ open: true, query: reference })
@@ -169,6 +221,27 @@ const DocumentLines = forwardRef(function DocumentLines(
 
   function handleRowClick(record) {
     setEditingKey(record.key)
+
+    const conditionnements =
+      initialLineItems?.find((art) => art.articleRef === record.articleRef)?.conditionnements ?? []
+
+    setConditionnementOptions(
+      conditionnements.map((c) => ({
+        value: c.enumere,
+        label: `${c.enumere} (${c.quantite})`
+      }))
+    )
+    setConditionnementMeta(
+      Object.fromEntries(conditionnements.map((c) => [c.enumere, { qte: c.quantite }]))
+    )
+
+    const qte = Number(record.quantite) || 0
+    const activeConditionnement =
+      qte > 0
+        ? (conditionnements.find((c) => c.quantite > 0 && Number.isInteger(qte / c.quantite))
+            ?.enumere ?? '')
+        : ''
+
     setFormValues({
       articleRef: record.articleRef ?? '',
       designation: record.designation ?? '',
@@ -178,8 +251,11 @@ const DocumentLines = forwardRef(function DocumentLines(
       couleur: record.couleur ?? '',
       prixUnitaire: record.prixUnitaire ?? '',
       quantite: record.quantite ?? '',
-      qteColisee: record.qteColisee ?? '',
-      remise: record.remise ?? ''
+      quantityColisee: record.quantityColisee ?? '',
+      conditionnement: activeConditionnement,
+      remise: record.remise ?? '',
+      description: record.description ?? '',
+      profondeur: record.profondeur
     })
   }
 
@@ -199,7 +275,6 @@ const DocumentLines = forwardRef(function DocumentLines(
       articleRef: item.articleRef,
       designation: formValues.designation,
       prixUnitaireHT: Number(formValues.prixUnitaire) || undefined,
-      quantite: Number(formValues.quantite) || undefined,
       hauteur: Number(formValues.hauteur) || 0,
       largeur: Number(formValues.largeur) || 0,
       chant: formValues.chant,
@@ -207,7 +282,24 @@ const DocumentLines = forwardRef(function DocumentLines(
       episseur: Number(formValues.episseur) || 0,
       remiseValeur: Number(formValues.remise) || undefined,
       remiseType: formValues.remiseType ?? undefined,
-      couleur: formValues.couleur
+      couleur: formValues.couleur,
+      profondeur: formValues.profondeur || 0
+    }
+
+    if (formValues.conditionnement) {
+      const qteParCond = conditionnementMeta[formValues.conditionnement]?.qte
+      const nbCond = Number(formValues.quantityColisee) || 0
+
+      if (!qteParCond || !nbCond) {
+        message.error('Conditionnement incomplet (quantité par colis ou nombre de colis manquant)')
+        return
+      }
+
+      payload.conditionnement = formValues.conditionnement
+      payload.quantiteParConditionnement = qteParCond
+      payload.nombreConditionnements = nbCond
+    } else {
+      payload.quantite = Number(formValues.quantite) || undefined
     }
 
     try {
@@ -218,11 +310,11 @@ const DocumentLines = forwardRef(function DocumentLines(
       resetForm()
     } catch (error) {
       console.error(error?.response?.data)
-      message.error(error?.response?.data?.detail)
+      message.error(
+        error?.response?.data?.message || error?.response?.data?.detail || 'Erreur mise à jour'
+      )
     }
   }
-
-  // --- Delete ---------------------------------------------------------
 
   const handleDelete = useCallback(async () => {
     if (checkedKeys.length === 0) return
@@ -246,9 +338,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       console.error(error)
       message.error('Erreur lors de la suppression des lignes')
     }
-  }, [checkedKeys, lineItems, documentType, piece, editingKey, removeLineItems])
-
-  // --- Move up / Move down --------------------------------------------
+  }, [checkedKeys, lineItems, documentType, piece, editingKey, removeLineItems, onUpdate])
 
   const reorderLineItems = (items, keys, up) => {
     const newItems = [...items]
@@ -310,7 +400,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       console.error(error)
       message.error('Erreur lors du déplacement vers le haut')
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems])
+  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])
 
   const handleMoveDown = useCallback(async () => {
     if (checkedKeys.length === 0) return
@@ -327,9 +417,8 @@ const DocumentLines = forwardRef(function DocumentLines(
       console.error(error)
       message.error('Erreur lors du déplacement vers le bas')
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems])
+  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])
 
-  // Expose imperative actions to the parent
   useImperativeHandle(
     ref,
     () => ({
@@ -340,8 +429,6 @@ const DocumentLines = forwardRef(function DocumentLines(
     }),
     [handleMoveUp, handleMoveDown, handleDelete]
   )
-
-  // --- Columns ---------------------------------------------------------
 
   const columns = useMemo(
     () =>
@@ -357,7 +444,14 @@ const DocumentLines = forwardRef(function DocumentLines(
               {title}
               <ColumnResizeHandle onResize={(delta) => resizeColumn(key, startWidth, delta)} />
             </div>
-          )
+          ),
+          // 👇 default render for every column: hide 0 / empty values
+          render: (value) => {
+            if (value === 0 || value === '' || value === null || value === undefined) {
+              return ''
+            }
+            return value
+          }
         }
 
         if (key === 'designation') {
@@ -388,57 +482,95 @@ const DocumentLines = forwardRef(function DocumentLines(
   )
 
   const rowSelection = {
+    columnWidth: SELECTION_COLUMN_WIDTH,
     selectedRowKeys: checkedKeys,
     onChange: (keys) => setCheckedKeys(keys)
   }
 
   return (
     <>
-      <ArticleFilterRow
-        columnDefs={COLUMN_DEFS}
-        widths={widths}
-        values={formValues}
-        onFieldChange={handleFieldChange}
-        onReferenceKeyDown={handleReferenceKeyDown}
-        onEnterKeyDown={handleOnEnterKeyDown}
-        referenceLoading={referenceLoading}
-        isEditing={Boolean(editingKey)}
-        canDelete={checkedKeys.length > 0}
-        onNew={resetForm}
-        onDelete={handleDelete}
-        onSave={handleSave}
-        piece={piece}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Action bar — kept outside the scroll container so buttons stay reachable */}
+        <div className="flex shrink-0 items-center justify-end gap-1 bg-white px-2 py-1">
+          <Button size="small" onClick={resetForm}>
+            Nouveau
+          </Button>
+          <Button size="small" disabled={checkedKeys.length === 0} onClick={handleDelete}>
+            Supprimer
+          </Button>
+          <Button size="small" type="primary" disabled={!editingKey} onClick={handleSave}>
+            Enregistrer
+          </Button>
+        </div>
 
-      <div ref={tableWrapRef} className="bg-white flex-1 min-h-0">
-        <Table
-          columns={columns}
-          dataSource={lineItems}
-          pagination={false}
-          size="small"
-          rowKey={rowId}
-          rowSelection={rowSelection}
-          onRow={(record) => ({
-            onClick: () => handleRowClick(record),
-            className: record.key === editingKey ? 'bg-blue-100' : ''
-          })}
-          className="
-            whitespace-nowrap
-              [&_.ant-table-thead>tr>th]:py-1!
-              [&_.ant-table-thead>tr>th]:!px-2
-              [&_.ant-table-tbody>tr>td]:!py-1
-              [&_.ant-table-tbody>tr>td]:!px-2
-              [&_.ant-table-tbody>tr>td]:text-sm
-            "
-          rowClassName={(record) =>
-            `text-[13px] whitespace-nowrap ${
-              record.key === editingKey ? '[&>td]:bg-blue-100! [&>td:hover]:bg-blue-100!' : ''
-            }`
-          }
-          scroll={{ x: totalWidth, y: bodyHeight }}
-          tableLayout="fixed"
-          locale={{ emptyText: <Empty description="Aucun article" /> }}
-        />
+        {/*
+          Single scroll container → only ONE horizontal scrollbar for both
+          the filter row and the table.
+          The wrapper fills the container by default (w-full) but never shrinks
+          below `totalWidth`, so the columns keep their pixel widths and stay
+          perfectly aligned with the inputs row.
+        */}
+        <div
+          className="min-h-0 flex-1 overflow-auto bg-white"
+          style={{ '--filter-row-height': `${filterRowHeight}px` }}
+        >
+          <div style={{ width: '100%', minWidth: totalWidth }}>
+            <div ref={filterRowRef} className="sticky top-0 z-20 bg-white">
+              <ArticleFilterRow
+                columnDefs={COLUMN_DEFS}
+                widths={widths}
+                values={formValues}
+                onFieldChange={handleFieldChange}
+                onReferenceKeyDown={handleReferenceKeyDown}
+                onEnterKeyDown={handleOnEnterKeyDown}
+                referenceLoading={referenceLoading}
+                isEditing={Boolean(editingKey)}
+                piece={piece}
+                conditionnementOptions={conditionnementOptions}
+                selectionColumnWidth={SELECTION_COLUMN_WIDTH}
+              />
+            </div>
+
+            <Table
+              columns={columns}
+              dataSource={lineItems}
+              pagination={false}
+              size="small"
+              rowKey={rowId}
+              rowSelection={rowSelection}
+              onRow={(record) => ({
+                onClick: () => handleRowClick(record)
+              })}
+              /*
+               * Pin the table to the exact sum of column widths so its header
+               * is left-aligned with the inputs row (never centered / stretched).
+               * No `scroll` prop: the outer wrapper owns horizontal scrolling.
+               */
+              style={{ width: totalWidth }}
+              tableLayout="fixed"
+              locale={{ emptyText: <Empty description="Aucun article" /> }}
+              className="
+                whitespace-nowrap
+                [&_.ant-table-content]:overflow-visible!
+                [&_.ant-table-thead>tr>th]:sticky
+                [&_.ant-table-thead>tr>th]:top-0
+                [&_.ant-table-thead>tr>th]:z-10
+                [&_.ant-table-thead>tr>th]:py-1!
+                [&_.ant-table-thead>tr>th]:!px-2
+                [&_.ant-table-tbody>tr>td]:!py-1
+                [&_.ant-table-tbody>tr>td]:!px-2
+                [&_.ant-table-tbody>tr>td]:overflow-hidden
+                [&_.ant-table-tbody>tr>td]:text-ellipsis
+                [&_.ant-table-tbody>tr>td]:text-sm
+              "
+              rowClassName={(record) =>
+                `text-[13px] whitespace-nowrap ${
+                  record.key === editingKey ? '[&>td]:bg-blue-100! [&>td:hover]:bg-blue-100!' : ''
+                }`
+              }
+            />
+          </div>
+        </div>
       </div>
 
       <ArticleSearchModal

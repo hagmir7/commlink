@@ -1,4 +1,4 @@
-import { Button, DatePicker, Input, Select } from 'antd'
+import { Button, DatePicker, Input, message, Select } from 'antd'
 import { useEffect, useState } from 'react'
 import { DownOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -70,6 +70,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   const [reference, setReference] = useState('')
   const [type, setType] = useState(null)
   const [port, setPort] = useState('')
+  const [collaborateurs, setCollaborateurs] = useState([])
 
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
@@ -117,7 +118,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     setDate(toDayjsOrNull(document.date) ?? TODAY)
     setDateLivraison(toDayjsOrNull(document.dateLivraison))
     setStatut(document.statut ?? 'DocumentStatutTypeSaisie')
-    setRepresentant(document.representant ?? null)
+    setRepresentant(document.collaborateur ?? null)
     setNExpedition(document.nExpedition)
     setNDocumentSouche(document.souche ?? 'Souche A')
     setNDocumentNumero(piece ?? '23DE000438')
@@ -200,6 +201,41 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     }
   }
 
+  const addCollaborateur = async (value) => {
+    let old = representant
+
+    try {
+      await api.patch(`/documents/${documentType}/${piece}/collaborateur`, {
+        nom: value,
+        prenom: ''
+      })
+      setRepresentant(value)
+    } catch (error) {
+      setRepresentant(old)
+      message.warning('Le collaborateur "' + value + '" n’est pas un vendeur.')
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    const fetchCollaborateurs = async () => {
+      try {
+        const response = await api.get('collaborateurs')
+
+        setCollaborateurs(
+          response.data.map((coll) => ({
+            label: `${coll.nom} ${coll.prenom}`,
+            value: coll.nom
+          }))
+        )
+      } catch (error) {
+        console.log(error)
+      }
+    }
+
+    fetchCollaborateurs()
+  }, [])
+
   return (
     <div className="shrink-0 bg-[#f0f0f0] px-3 py-3 grid grid-cols-3 gap-x-6 gap-y-2 border-b border-gray-300">
       {/* Column 1 */}
@@ -216,11 +252,11 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
             loading={optionsLoading.client}
             disabled={piece}
             onChange={onChange(setClient, 'client')}
-            showSearch
-            optionFilterProp="label"
-            filterOption={(input, option) =>
-              option?.label?.toLowerCase().includes(input.toLowerCase())
-            }
+            showSearch={{
+              optionFilterProp: 'label',
+              filterOption: (input, option) =>
+                option?.label?.toLowerCase().includes(input.toLowerCase())
+            }}
           />
         </LabeledField>
         <FieldError error={errors.client || optionsError.client} />
@@ -238,6 +274,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
           />
           <Select size="small" disabled className="flex-1" />
         </LabeledField>
+
         <FieldError error={errors.statut || optionsError.statut} />
 
         <LabeledField label="Affaire">
@@ -299,7 +336,14 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
         <FieldError error={errors.dateLivraison} offset={78} />
 
         <LabeledField label="Représentant" labelWidth={70}>
-          <Select size="small" className="flex-1" value={representant} onChange={setRepresentant} />
+          <Select
+            size="small"
+            className="flex-1"
+            options={collaborateurs}
+            value={representant}
+            disabled={!piece}
+            onChange={(value) => addCollaborateur(value)}
+          />
         </LabeledField>
 
         <LabeledField label="N° Expédition" labelWidth={70}>

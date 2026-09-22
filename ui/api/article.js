@@ -1,7 +1,5 @@
 import { api } from '../utils/api'
 
-const API_BASE = 'articles'
-
 /**
  * Looks up article(s) by exact reference.
  * Always returns an array.

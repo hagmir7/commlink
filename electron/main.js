@@ -5,8 +5,8 @@ const { createShowWindow, setMainWindow } = require('./windows/showWindow.js')
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1500,
+    height: 800,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {

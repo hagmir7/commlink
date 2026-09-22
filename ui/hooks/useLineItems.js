@@ -18,9 +18,12 @@ function toLineItem(article) {
     couleur: article.couleur ?? '',
     prixUnitaire: article.prixUnitaire ?? 0,
     quantite: article.quantite ?? 1,
-    qteColisee: article.qteColisee ?? 1,
+    quantityColisee: article.quantityColisee ?? 1,
     remise: article.remise ?? 0,
-    indent: article.indent ?? false
+    indent: article.indent ?? false,
+    description: article.description ?? false,
+    conditionnement: article.conditionnement ?? false,
+    profondeur: article.profondeur ?? false
   }
 }
 

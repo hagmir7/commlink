@@ -8,6 +8,7 @@ import DocumentLines from '../components/DocumentLines'
 import DocumentTotals from '../components/DocumentTotals'
 import { api } from '../utils/api'
 import DocumentBarTitle from '../components/DocumentBarTitle'
+import DocumentToolbar from '../components/DocumentToolbar'
 
 export default function CreateDocument() {
   const { piece } = useParams()
@@ -159,13 +160,15 @@ export default function CreateDocument() {
 
   return (
     <div
-      className="bg-[#f0f0f0] border border-gray-400 shadow-lg w-full h-screen max-h-screen flex flex-col overflow-hidden"
+      className="bg-[#f0f0f0] shadow-lg w-full h-screen max-h-screen flex flex-col overflow-hidden"
       style={{
         fontFamily: 'Segoe UI, Tahoma, sans-serif'
       }}
     >
       {/* Title bar */}
       <DocumentBarTitle piece={piece} document={document} />
+
+      <DocumentToolbar documentType={documentType} document={document} />
 
       {/* Document header */}
       <DocumentHeaderForm
@@ -220,7 +223,9 @@ export default function CreateDocument() {
       </div>
 
       {/* Totals */}
-      <DocumentTotals document={document} />
+      <div className="p-2">
+        <DocumentTotals document={document} />
+      </div>
 
       {/* Footer buttons */}
       <div className="shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-[#f0f0f0]">

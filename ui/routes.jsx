@@ -21,6 +21,14 @@ export const router = createHashRouter([
       {
         path: '*',
         element: <ErrorPage />
+      },
+      {
+        path: 'layout/create-document',
+        element: <CreateDocument />
+      },
+      {
+        path: 'layout/documents/:piece',
+        element: <CreateDocument />
       }
     ]
   },
