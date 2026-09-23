@@ -340,6 +340,45 @@ const DocumentLines = forwardRef(function DocumentLines(
     }
   }, [checkedKeys, lineItems, documentType, piece, editingKey, removeLineItems, onUpdate])
 
+  const handleTransform = useCallback(
+    async (target) => {
+      if (checkedKeys.length === 0) return
+      if (!target) {
+        message.error('Veuillez préciser la cible de transformation')
+        return
+      }
+
+      // Map selected row ids → 1-based positions in the current list
+      const positions = checkedKeys
+        .map((id) => {
+          const item = lineItems.find((li) => `${li.articleRef}-${li.key}` === id)
+          return item ? lineItems.indexOf(item) + 1 : null
+        })
+        .filter((pos) => pos !== null)
+
+      try {
+        await api.post(`documents/${documentType}/${piece}/transform/lines`, {
+          positions,
+          target
+        })
+
+        setCheckedKeys([])
+        onUpdate()
+        message.success(
+          positions.length > 1 ? `${positions.length} lignes transformées` : 'Ligne transformée'
+        )
+      } catch (error) {
+        console.error(error?.response?.data || error)
+        message.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.detail ||
+            'Erreur lors de la transformation des lignes'
+        )
+      }
+    },
+    [checkedKeys, lineItems, documentType, piece, onUpdate]
+  )
+
   const reorderLineItems = (items, keys, up) => {
     const newItems = [...items]
     const selected = newItems.filter((item) => keys.includes(`${item.articleRef}-${item.key}`))
@@ -425,6 +464,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       moveUp: handleMoveUp,
       moveDown: handleMoveDown,
       delete: handleDelete,
+      transform: handleTransform,
       clearSelection: () => setCheckedKeys([])
     }),
     [handleMoveUp, handleMoveDown, handleDelete]

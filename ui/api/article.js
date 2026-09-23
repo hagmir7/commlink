@@ -27,12 +27,15 @@ export async function findArticleByReference(reference) {
  */
 export async function searchArticles(query) {
   try {
-    const response = await api.get(`articles`, {
-      params: { query }
+    const response = await api.get(`articles/short`, {
+      params: {
+        search: query,
+        pageSize: 1000,
+        page: 1
+      }
     })
 
-    const data = response.data
-
+    const data = response.data.data
     return Array.isArray(data) ? data : []
   } catch (error) {
     throw new Error(

@@ -158,6 +158,25 @@ export default function CreateDocument() {
     }
   }
 
+  /**
+   * Handle an entry picked from the "Actions" dropdown.
+   * Values are encoded as `"<action>:<arg>"` so a single Select can drive
+   * several commands without extra state.
+   */
+  const handleAction = async (value) => {
+    const [action, arg] = value.split(':')
+
+    switch (action) {
+      case 'transform':
+        // Exposed by DocumentLines via useImperativeHandle
+        await linesRef.current?.transform(arg)
+        break
+
+      default:
+        break
+    }
+  }
+
   return (
     <div
       className="bg-[#f0f0f0] shadow-lg w-full h-screen max-h-screen flex flex-col overflow-hidden"
@@ -191,16 +210,24 @@ export default function CreateDocument() {
       />
 
       {/* Bottom action bar */}
+      {/* Bottom action bar */}
       <div className="shrink-0 flex items-center gap-1 px-2 py-1 bg-[#f0f0f0] border-t border-b border-gray-300">
         <Select
           size="small"
-          defaultValue="Actions"
-          className="w-24"
+          value={null}
+          placeholder="Actions"
+          className="w-52"
+          disabled={!hasSelection || loadingMovement}
           suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
+          onChange={handleAction}
           options={[
             {
-              value: 'Actions',
-              label: 'Actions'
+              label: 'Transformer',
+              options: [
+                { value: 'transform:Commande', label: 'Transformer en Commande' },
+                { value: 'transform:Livraison', label: 'Transformer en Livraison' },
+                { value: 'transform:Facture', label: 'Transformer en Facture' }
+              ]
             }
           ]}
         />

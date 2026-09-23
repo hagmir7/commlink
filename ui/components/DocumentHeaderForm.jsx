@@ -264,7 +264,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
         <LabeledField label="Statut">
           <Select
             size="small"
-            className="w-32"
+            className="w-54"
             status={errors.statut ? 'error' : undefined}
             value={statut}
             loading={optionsLoading.statut}
