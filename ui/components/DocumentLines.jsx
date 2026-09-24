@@ -278,7 +278,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       hauteur: Number(formValues.hauteur) || 0,
       largeur: Number(formValues.largeur) || 0,
       chant: formValues.chant,
-      description: formValues.description ?? '',
+      description: formValues.description ? formValues.description : '',
       episseur: Number(formValues.episseur) || 0,
       remiseValeur: Number(formValues.remise) || undefined,
       remiseType: formValues.remiseType ?? undefined,
@@ -437,7 +437,8 @@ const DocumentLines = forwardRef(function DocumentLines(
     } catch (error) {
       onLoadingMovemen(false)
       console.error(error)
-      message.error('Erreur lors du déplacement vers le haut')
+      console.log(error)
+      message.error(error?.response?.data?.message || 'Erreur lors du déplacement vers le haut')
     }
   }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])
 

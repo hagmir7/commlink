@@ -1,26 +1,37 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DEFAULT_DOCUMENT_TYPE } from '../constants/documentTypes'
 import DocumentsActionBar from '../components/DocumentsActionBar'
 import DocumentsSidebar from '../components/DocumentsSidebar'
 import DocumentsToolbar from '../components/DocumentsToolbar'
 import DocumentsTable from '../components/DocumentsTable'
-import dayjs from 'dayjs'
 import { api } from '../utils/api'
 import { handleShow } from '../utils/helpers'
+import SelectDocumentTypeModal from '../components/NewDocumentModal'
 
 export default function Home() {
   const navigate = useNavigate()
 
+  // --- filters ----------------------------------------------------------
+  // documentType is one item of DOCUMENT_TYPES: { type, value, label, code, domain, color }
   const [documentType, setDocumentType] = useState(DEFAULT_DOCUMENT_TYPE)
   const [clientCode, setClientCode] = useState(null)
-  const [dateRange, setDateRange] = useState([dayjs().subtract(3, 'month'), dayjs()])
+  const [dateRange, setDateRange] = useState(['', ''])
   const [search, setSearch] = useState('')
-  const [selectedRowKey, setSelectedRowKey] = useState(null)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [isSelectTypeOpen, setIsSelectTypeOpen] = useState(false)
 
+  // --- sorting + pagination --------------------------------------------
+  const [sortOrder, setSortOrder] = useState('') // '', 'date', 'client', 'client_desc', 'statut', 'statut_desc'
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(600)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // --- data -------------------------------------------------------------
+  const [selectedRowKey, setSelectedRowKey] = useState(null)
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(false)
-
+  const [reloadKey, setReloadKey] = useState(0)
   const [clientOptions, setClientOptions] = useState([])
 
   // --- fetch clients once on mount ------------------------------------
@@ -37,24 +48,48 @@ export default function Home() {
       .catch((err) => console.error('Failed to load clients:', err))
   }, [])
 
-  // --- fetch documents whenever filters change --------------------------
+  // --- debounce the search box (server-side search) --------------------
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // --- fetch documents whenever filters / sort / page change ------------
   useEffect(() => {
     let isCancelled = false
 
     async function loadDocuments() {
       setLoading(true)
       try {
-        const params = {}
-        if (documentType) params.type = documentType
-        if (clientCode) params.clientCode = clientCode
-        if (dateRange?.[0]) params.dateDebut = dateRange[0].format('YYYY-MM-DD')
-        if (dateRange?.[1]) params.dateFin = dateRange[1].format('YYYY-MM-DD')
+        const params = { page, pageSize }
 
-        const res = await api.get(`/documents`, { params })
-        setDocuments(res.data)
+        // doType / doDomaine come from the selected document type
+        if (documentType) {
+          params.doType = documentType.value // can be 0 (Devis), so no truthy check on the value
+          params.doDomaine = documentType.domain
+        }
+        if (clientCode) params.clientCode = clientCode
+        if (debouncedSearch) params.search = debouncedSearch
+        if (sortOrder) params.sortOrder = sortOrder
+        if (dateRange?.[0]) params.dateFrom = dateRange[0].format('YYYY-MM-DD')
+        if (dateRange?.[1]) params.dateTo = dateRange[1].format('YYYY-MM-DD')
+
+        const res = await api.get(`/documents/short`, { params })
+
+        if (isCancelled) return
+        setDocuments(res.data.items ?? [])
+        setTotalItems(res.data.totalItems ?? 0)
+        // server clamps out-of-range pages, keep the UI in sync
+        if (res.data.page && res.data.page !== page) setPage(res.data.page)
       } catch (err) {
         console.error('Failed to fetch documents:', err)
-        if (!isCancelled) setDocuments([])
+        if (!isCancelled) {
+          setDocuments([])
+          setTotalItems(0)
+        }
       } finally {
         if (!isCancelled) setLoading(false)
       }
@@ -65,35 +100,49 @@ export default function Home() {
     return () => {
       isCancelled = true
     }
-  }, [documentType, clientCode, dateRange])
+  }, [documentType, clientCode, dateRange, debouncedSearch, sortOrder, page, pageSize, reloadKey])
 
-  const filteredDocuments = useMemo(() => {
-    if (!search) return documents
-    const q = search.toLowerCase()
-    return documents.filter(
-      (d) =>
-        d.piece?.toLowerCase().includes(q) ||
-        d.ref?.toLowerCase().includes(q) ||
-        d.clientIntitule?.toLowerCase().includes(q) ||
-        d.clientCode?.toLowerCase().includes(q)
-    )
-  }, [documents, search])
-
+  // --- handlers (each filter change goes back to page 1) ----------------
   const handleSelectType = (type) => {
     setDocumentType(type)
     setSelectedRowKey(null)
+    setPage(1)
+  }
+
+  const handleClientChange = (code) => {
+    setClientCode(code)
+    setPage(1)
+  }
+
+  const handleDateRangeChange = (range) => {
+    setDateRange(range)
+    setPage(1)
+  }
+
+  const handleSortChange = (order) => {
+    setSortOrder(order)
+    setPage(1)
+  }
+
+  const handlePageChange = (newPage, newPageSize) => {
+    if (newPageSize !== pageSize) {
+      setPageSize(newPageSize)
+      setPage(1)
+    } else {
+      setPage(newPage)
+    }
   }
 
   const handleOpenRow = (row) => {
-    handleShow(navigate, `/documents/${row.piece}?documentType=${documentType}`)
+    handleShow(navigate, `/documents/${row.piece}?documentType=${documentType.type}`)
   }
 
   const handleDelete = async () => {
     if (!selectedRowKey) return
     try {
-      await api.delete(`/documents/${documentType}/${selectedRowKey}`)
+      await api.delete(`/documents/${documentType.type}/${selectedRowKey}`)
       setSelectedRowKey(null)
-      setDocumentType((t) => t)
+      setReloadKey((k) => k + 1) // re-fetch the list
     } catch (error) {
       console.error('Failed to delete document:', error)
     }
@@ -102,27 +151,35 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-white">
       <div className="flex flex-1">
-        <DocumentsSidebar activeType={documentType} onSelect={handleSelectType} />
+        <DocumentsSidebar activeType={documentType.type} onSelect={handleSelectType} />
 
         <div className="flex flex-col flex-1 min-w-0">
           <DocumentsToolbar
             clientOptions={clientOptions}
             clientCode={clientCode}
-            onClientChange={setClientCode}
+            onClientChange={handleClientChange}
             dateRange={dateRange}
-            onDateRangeChange={setDateRange}
+            onDateRangeChange={handleDateRangeChange}
             search={search}
             onSearchChange={setSearch}
           />
 
           <div className="flex-1 h-screen">
             <DocumentsTable
-              documents={filteredDocuments}
+              documents={documents}
               documentType={documentType}
               loading={loading}
               selectedRowKey={selectedRowKey}
               onSelectRow={setSelectedRowKey}
               onOpenRow={handleOpenRow}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
+              pagination={{
+                current: page,
+                pageSize,
+                total: totalItems,
+                onChange: handlePageChange
+              }}
             />
           </div>
         </div>
@@ -132,12 +189,17 @@ export default function Home() {
         canOpen={!!selectedRowKey}
         canDelete={!!selectedRowKey}
         onOpen={() => {
-          const row = filteredDocuments.find((d) => d.piece === selectedRowKey)
+          const row = documents.find((d) => d.piece === selectedRowKey)
           if (row) handleOpenRow(row)
         }}
-        onNouveau={() => handleShow(navigate, `/create-document?documentType=${documentType}`)}
+        onNouveau={() => setIsSelectTypeOpen(true)}
         onDelete={handleDelete}
         onClose={() => navigate(-1)}
+      />
+
+      <SelectDocumentTypeModal
+        open={isSelectTypeOpen}
+        onCancel={() => setIsSelectTypeOpen(false)}
       />
     </div>
   )

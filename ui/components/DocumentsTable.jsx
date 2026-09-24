@@ -38,15 +38,19 @@ export default function DocumentsTable({
       width: 40,
       render: (_, row) => (
         <div className="flex gap-1 text-[10px] text-gray-500">
-          {row.imprime && (
+          {row.imprime ? (
             <span title="Imprimé">
               <Printer size={15} />
             </span>
+          ) : (
+            ''
           )}
-          {row.reliquat && (
+          {row.reliquat ? (
             <span title="Reliquat">
               <Settings size={15} />
             </span>
+          ) : (
+            ''
           )}
         </div>
       )
@@ -98,7 +102,24 @@ export default function DocumentsTable({
         onDoubleClick: () => onOpenRow(row),
         className: row.piece === selectedRowKey ? '!bg-blue-50 cursor-pointer' : 'cursor-pointer'
       })}
-      className="h-full whitespace-nowrap [&_.ant-table-thead_.ant-table-cell]:bg-[#f0f0f0] [&_.ant-table-thead_.ant-table-cell]:text-[12px] [&_.ant-table-tbody_.ant-table-cell]:text-[12px] [&_.ant-table-tbody_.ant-table-cell]:py-1"
+      className="
+        h-full whitespace-nowrap
+      [&_.ant-table-thead_.ant-table-cell]:bg-[#f0f0f0]
+        [&_.ant-table-thead_.ant-table-cell]:text-[12px] 
+
+        [&_.ant-table-tbody_.ant-table-cell]:py-1
+        [&_.ant-table-content]:overflow-visible!
+        [&_.ant-table-thead>tr>th]:sticky
+        [&_.ant-table-thead>tr>th]:top-0
+        [&_.ant-table-thead>tr>th]:z-10
+        [&_.ant-table-thead>tr>th]:py-1!
+        [&_.ant-table-thead>tr>th]:!px-2
+        [&_.ant-table-tbody>tr>td]:!py-1
+        [&_.ant-table-tbody>tr>td]:!px-2
+        [&_.ant-table-tbody>tr>td]:overflow-hidden
+        [&_.ant-table-tbody>tr>td]:text-ellipsis
+        [&_.ant-table-tbody>tr>td]:text-sm
+              "
     />
   )
 }

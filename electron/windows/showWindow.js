@@ -33,7 +33,7 @@ const createShowWindow = (data) => {
     titleBarStyle: 'hidden',
     parent: mainWindowReference,
     modal: true,
-    alwaysOnTop: true,
+    // alwaysOnTop: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,

@@ -36,7 +36,7 @@ export default function CreateDocument() {
     setLoadingDocument(true)
 
     try {
-      const response = await api.get(`documents/${documentType}/${currentPiece}`)
+      const response = await api.get(`documents/${currentPiece}`)
 
       const data = response.data
 
