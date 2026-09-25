@@ -185,7 +185,7 @@ export default function CreateDocument() {
       }}
     >
       {/* Title bar */}
-      <DocumentBarTitle piece={piece} document={document} />
+      <DocumentBarTitle piece={piece} document={document} documentType={documentType} />
 
       <DocumentToolbar documentType={documentType} document={document} />
 

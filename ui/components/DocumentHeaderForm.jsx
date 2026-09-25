@@ -1,59 +1,29 @@
-import { Button, DatePicker, Input, message, Select } from 'antd'
+import { message } from 'antd'
 import { useEffect, useState } from 'react'
-import { DownOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
-import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { api } from '../utils/api'
+import { getAvailableStatuts, getStatut } from '../utils/helpers'
+import {
+  DEFAULT_STATUT,
+  DOCUMENT_TYPES,
+  FIELD_LABELS,
+  REQUIRED_FIELDS
+} from '../constants/documentTypes'
+import { TODAY, toDayjsOrNull } from '../utils/dateUtils'
+import ClientColumn from './ClientColumn'
+import DateColumn from './DateColumn'
+import DocumentColumn from './DocumentColumn'
 
-dayjs.extend(customParseFormat)
-const TODAY = dayjs().startOf('day')
-
-const FIELD_LABELS = {
-  reference: 'Référence',
-  client: 'Client',
-  date: 'Date',
-  dateLivraison: 'Date livraison',
-  statut: 'Statut',
-  expedition: 'Expédition',
-  type: 'Type',
-  souche: 'Souche'
-}
-const REQUIRED_FIELDS = Object.keys(FIELD_LABELS)
-
-const toDayjsOrNull = (v) => {
-  if (!v) return null
-  const d = dayjs(v)
-  return d.isValid() ? d : null
-}
-
-const LabeledField = ({ label, labelWidth = 96, children }) => (
-  <div className="flex items-center gap-2">
-    <span
-      className="text-[12px] text-gray-700 text-right shrink-0 whitespace-nowrap"
-      style={{ width: labelWidth }}
-    >
-      {label}
-    </span>
-    {children}
-  </div>
-)
-
-const FieldError = ({ error, offset = 104 }) =>
-  error ? (
-    <span className="text-[11px] text-red-600" style={{ marginLeft: offset }}>
-      {error}
-    </span>
-  ) : null
+const DATE_LIVRAISON_RESTRICTED_TYPES = [0, 1, 2]
 
 export default function DocumentHeaderForm({ onValidate, piece, document, documentType }) {
   const [clientOptions, setClientOptions] = useState([])
   const [expeditionOptions, setExpeditionOptions] = useState([])
-  const [statutOptions, setStatutOptions] = useState([])
+
   const [optionsLoading, setOptionsLoading] = useState({
     client: true,
-    expedition: true,
-    statut: true
+    expedition: true
   })
+
   const [optionsError, setOptionsError] = useState({})
 
   const [client, setClient] = useState(null)
@@ -62,35 +32,47 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   const [date, setDate] = useState(TODAY)
   const [dateLivraisonStatut, setDateLivraisonStatut] = useState('Prévue')
   const [dateLivraison, setDateLivraison] = useState(null)
-  const [statut, setStatut] = useState('DocumentStatutTypeSaisie')
+  const [statutValue, setStatutValue] = useState(DEFAULT_STATUT.value)
+
   const [representant, setRepresentant] = useState(null)
   const [nExpedition, setNExpedition] = useState(undefined)
   const [nDocumentSouche, setNDocumentSouche] = useState('Souche A')
   const [nDocumentNumero, setNDocumentNumero] = useState('23DE000438')
   const [reference, setReference] = useState('')
   const [type, setType] = useState(null)
+
   const [port, setPort] = useState('')
   const [collaborateurs, setCollaborateurs] = useState([])
 
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
+  // ---------------------------------------------------------
+  // The "documentType" prop is the type the page was opened
+  // with (e.g. for creating a new document). Once a document
+  // is actually loaded, its own `doType` field is the source
+  // of truth for which status list applies.
+  // ---------------------------------------------------------
+
+  const statutDocType =
+    document?.doType ?? DOCUMENT_TYPES.find((item) => item.type === documentType)?.value
+
+  // Auto-submit only when editing an existing document (not on create).
+  const canAutoSubmit = Boolean(piece || document?.piece)
+
+  // ---------------------------------------------------------
   // Load async options
+  // ---------------------------------------------------------
+
   useEffect(() => {
     const loaders = [
       [
         'client',
-        '/clients?max=1000',
+        '/clients/short?type=0',
         (c) => ({ value: c.code, label: `${c.code} ${c.intitule}` }),
         setClientOptions
       ],
-      ['expedition', '/expeditions', (e) => ({ value: e, label: e }), setExpeditionOptions],
-      [
-        'statut',
-        `/documents/${documentType}/statuts`,
-        (s) => ({ value: s.value, label: s.label }),
-        setStatutOptions
-      ]
+      ['expedition', '/expeditions', (e) => ({ value: e, label: e }), setExpeditionOptions]
     ]
 
     Promise.all(
@@ -100,15 +82,42 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
           setter(data.map(mapFn))
         } catch (error) {
           console.error(`API Error (${path}):`, error)
-          setOptionsError((prev) => ({ ...prev, [key]: 'Impossible de charger les options' }))
+          setOptionsError((prev) => ({
+            ...prev,
+            [key]: 'Impossible de charger les options'
+          }))
         } finally {
           setOptionsLoading((prev) => ({ ...prev, [key]: false }))
         }
       })
     )
-  }, [documentType])
+  }, [])
 
-  // Re-sync when the document arrives
+  // ---------------------------------------------------------
+  // Load collaborateurs
+  // ---------------------------------------------------------
+
+  useEffect(() => {
+    const fetchCollaborateurs = async () => {
+      try {
+        const response = await api.get('collaborateurs')
+        setCollaborateurs(
+          response.data.map((coll) => ({
+            label: `${coll.nom} ${coll.prenom}`,
+            value: coll.nom
+          }))
+        )
+      } catch (error) {
+        console.log(error)
+      }
+    }
+    fetchCollaborateurs()
+  }, [])
+
+  // ---------------------------------------------------------
+  // Re-sync when document arrives
+  // ---------------------------------------------------------
+
   useEffect(() => {
     if (!piece || !document) return
 
@@ -117,7 +126,13 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     setExpedition(document.expedition || 'EX-WORK')
     setDate(toDayjsOrNull(document.date) ?? TODAY)
     setDateLivraison(toDayjsOrNull(document.dateLivraison))
-    setStatut(document.statut ?? 'DocumentStatutTypeSaisie')
+
+    if (document.statut !== null && document.statut !== undefined) {
+      setStatutValue(document.statut)
+    } else {
+      setStatutValue(DEFAULT_STATUT.value)
+    }
+
     setRepresentant(document.collaborateur ?? null)
     setNExpedition(document.nExpedition)
     setNDocumentSouche(document.souche ?? 'Souche A')
@@ -127,6 +142,10 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     setPort(document.port ?? '')
   }, [piece, document])
 
+  // ---------------------------------------------------------
+  // Errors
+  // ---------------------------------------------------------
+
   const clearError = (field) =>
     setErrors((prev) => {
       if (!prev[field]) return prev
@@ -134,32 +153,45 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
       return rest
     })
 
-  const onChange = (setter, field) => (v) => {
-    setter(v?.target ? v.target.value : v)
-    clearError(field)
-  }
+  // ---------------------------------------------------------
+  // Snapshot / validate / submit
+  // ---------------------------------------------------------
 
-  const validate = () => {
-    const values = {
-      reference,
-      client,
-      date,
-      dateLivraison,
-      statut,
-      expedition,
-      type,
-      souche: nDocumentSouche
-    }
+  // Build the values the form would submit, applying any overrides on top
+  // (so auto-submit uses the freshly-changed value, not the stale state).
+  const buildSnapshot = (overrides = {}) => ({
+    reference,
+    client,
+    date,
+    dateLivraison,
+    statutValue,
+    expedition,
+    type,
+    souche: nDocumentSouche,
+    ...overrides
+  })
+
+  const validate = (snap) => {
     const newErrors = {}
 
     REQUIRED_FIELDS.forEach((field) => {
-      const v = values[field]
+      // REQUIRED_FIELDS uses `statut` but our state key is `statutValue`
+      const key = field === 'statut' ? 'statutValue' : field
+      const v = snap[key]
       if (v === null || v === undefined || v === '') {
         newErrors[field] = `${FIELD_LABELS[field]} est obligatoire`
       }
     })
 
-    if (dateLivraison && dateLivraison.startOf('day').isBefore(TODAY)) {
+    const isDateLivraisonRestricted = DATE_LIVRAISON_RESTRICTED_TYPES.includes(
+      Number(statutDocType)
+    )
+
+    if (
+      isDateLivraisonRestricted &&
+      snap.dateLivraison &&
+      snap.dateLivraison.startOf('day').isBefore(TODAY)
+    ) {
       newErrors.dateLivraison = "La date de livraison ne peut pas être antérieure à aujourd'hui"
     }
 
@@ -167,24 +199,33 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     return Object.keys(newErrors).length === 0
   }
 
-  const handleValidate = async () => {
-    if (submitting || !validate()) return
+  const handleValidate = async (overrides = {}) => {
+    if (submitting) return
+
+    const snap = buildSnapshot(overrides)
+
+    if (!validate(snap)) return
+
+    // Resolve the status from the snapshot value (not from state)
+    const statutObj = getStatut(statutDocType, snap.statutValue) ?? DEFAULT_STATUT
 
     const formData = {
       documentType,
-      clientCode: client,
-      reference,
-      type,
+      clientCode: snap.client,
+      reference: snap.reference,
+      type: snap.type,
       affaire,
-      expedition,
-      date: date.format('DDMMYY'),
+      expedition: snap.expedition,
+      date: snap.date?.format('DDMMYY'),
       dateLivraisonStatut,
-      dateLivraison: dateLivraison.format('YYYY-MM-DD'),
+      dateLivraison: snap.dateLivraison?.format('YYYY-MM-DD') ?? null,
       representant,
       nExpedition,
-      statut,
-      souche: nDocumentSouche,
-      nDocument: { numero: nDocumentNumero },
+      statut: statutObj.name,
+      souche: snap.souche,
+      nDocument: {
+        numero: nDocumentNumero
+      },
       port
     }
 
@@ -201,9 +242,60 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     }
   }
 
-  const addCollaborateur = async (value) => {
-    let old = representant
+  // Only fires if the document is an existing one (has a `piece`)
+  const autoSubmit = (overrides) => {
+    if (!canAutoSubmit) return
+    handleValidate(overrides)
+  }
 
+  // ---------------------------------------------------------
+  // Field change handlers
+  // ---------------------------------------------------------
+
+  const onChange = (setter, field) => (value) => {
+    setter(value?.target ? value.target.value : value)
+    clearError(field)
+  }
+
+  const handleClientChange = (value) => {
+    const v = value?.target ? value.target.value : value
+    setClient(v)
+    clearError('client')
+    autoSubmit({ client: v })
+  }
+
+  const handleStatutChange = (value) => {
+    setStatutValue(value)
+    clearError('statut')
+    autoSubmit({ statutValue: value })
+  }
+
+  const handleExpeditionChange = (value) => {
+    const v = value?.target ? value.target.value : value
+    setExpedition(v)
+    clearError('expedition')
+    autoSubmit({ expedition: v })
+  }
+
+  const handleTypeChange = (value) => {
+    const v = value?.target ? value.target.value : value
+    setType(v)
+    clearError('type')
+    autoSubmit({ type: v })
+  }
+
+  const handleDateLivraisonChange = (value) => {
+    setDateLivraison(value)
+    clearError('dateLivraison')
+    autoSubmit({ dateLivraison: value })
+  }
+
+  // ---------------------------------------------------------
+  // Collaborateur
+  // ---------------------------------------------------------
+
+  const addCollaborateur = async (value) => {
+    const old = representant
     try {
       await api.patch(`/documents/${documentType}/${piece}/collaborateur`, {
         nom: value,
@@ -212,222 +304,145 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
       setRepresentant(value)
     } catch (error) {
       setRepresentant(old)
-      message.warning('Le collaborateur "' + value + '" n’est pas un vendeur.')
-      console.error(error)
+      message.warning(
+        error.response.data.message || `Le collaborateur "${value}" n’est pas un vendeur.`
+      )
+      console.error(error.response.data)
     }
   }
 
-  useEffect(() => {
-    const fetchCollaborateurs = async () => {
-      try {
-        const response = await api.get('collaborateurs')
+  // ---------------------------------------------------------
+  // Enter key → submit
+  // ---------------------------------------------------------
 
-        setCollaborateurs(
-          response.data.map((coll) => ({
-            label: `${coll.nom} ${coll.prenom}`,
-            value: coll.nom
-          }))
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter') return
+
+    // Ignore Shift+Enter and IME composition
+    if (event.shiftKey || event.nativeEvent?.isComposing) return
+
+    // Don't hijack Enter inside a textarea
+    const tag = event.target?.tagName?.toLowerCase()
+    if (tag === 'textarea') return
+
+    // Don't hijack Enter inside an Ant Design Select (dropdown confirm)
+    if (event.target?.getAttribute?.('role') === 'combobox') return
+    if (event.target?.closest?.('.ant-select')) return
+
+    event.preventDefault()
+    handleValidate()
+  }
+
+  // ---------------------------------------------------------
+  // Available statuses
+  // ---------------------------------------------------------
+
+  const statuses = getAvailableStatuts(statutDocType)
+
+  // ---------------------------------------------------------
+  // Next piece number
+  // ---------------------------------------------------------
+
+  useEffect(() => {
+    const getNextPiece = async () => {
+      try {
+        const response = await api.get(
+          `documents/${documentType}/next-piece?souche=${nDocumentSouche ?? ''}`
         )
+        setNDocumentNumero(response?.data?.piece ?? '')
       } catch (error) {
-        console.log(error)
+        console.error(error)
       }
     }
-
-    fetchCollaborateurs()
-  }, [])
+    getNextPiece()
+  }, [nDocumentSouche])
 
   return (
-    <div className="shrink-0 bg-[#f0f0f0] px-3 py-3 grid grid-cols-3 gap-x-6 gap-y-2 border-b border-gray-300">
-      {/* Column 1 */}
-      <div className="flex flex-col gap-2">
-        <LabeledField label="Client">
-          <span className="text-[12px] text-blue-700 underline w-14 shrink-0">Numéro</span>
-          <Select
-            size="small"
-            className="flex-1 max-w-full"
-            status={errors.client ? 'error' : undefined}
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            options={clientOptions}
-            value={client}
-            loading={optionsLoading.client}
-            disabled={piece}
-            onChange={onChange(setClient, 'client')}
-            showSearch={{
-              optionFilterProp: 'label',
-              filterOption: (input, option) =>
-                option?.label?.toLowerCase().includes(input.toLowerCase())
-            }}
-          />
-        </LabeledField>
-        <FieldError error={errors.client || optionsError.client} />
+    <div
+      onKeyDown={handleKeyDown}
+      className="shrink-0 bg-[#f0f0f0] px-3 py-3 grid grid-cols-3 gap-x-6 gap-y-2 border-b border-gray-300"
+    >
+      <ClientColumn
+        client={{
+          value: client,
+          options: clientOptions,
+          loading: optionsLoading.client,
+          error: optionsError.client,
+          fieldError: errors.client,
+          disabled: piece,
+          onChange: handleClientChange
+        }}
+        statut={{
+          value: statutValue,
+          options: statuses,
+          error: errors.statut,
+          onChange: handleStatutChange
+        }}
+        affaire={{
+          value: affaire,
+          onChange: setAffaire
+        }}
+        expedition={{
+          value: expedition,
+          options: expeditionOptions,
+          loading: optionsLoading.expedition,
+          error: optionsError.expedition,
+          fieldError: errors.expedition,
+          onChange: handleExpeditionChange
+        }}
+      />
 
-        <LabeledField label="Statut">
-          <Select
-            size="small"
-            className="w-54"
-            status={errors.statut ? 'error' : undefined}
-            value={statut}
-            loading={optionsLoading.statut}
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            options={statutOptions}
-            onChange={onChange(setStatut, 'statut')}
-          />
-          <Select size="small" disabled className="flex-1" />
-        </LabeledField>
+      <DateColumn
+        date={{
+          value: date,
+          error: errors.date,
+          disabled: piece,
+          onChange: onChange(setDate, 'date')
+        }}
+        dateLivraison={{
+          statutValue: dateLivraisonStatut,
+          onStatutChange: setDateLivraisonStatut,
+          value: dateLivraison,
+          error: errors.dateLivraison,
+          onChange: handleDateLivraisonChange
+        }}
+        representant={{
+          value: representant,
+          options: collaborateurs,
+          disabled: !piece,
+          onChange: addCollaborateur
+        }}
+        nExpedition={{
+          value: nExpedition,
+          onChange: (e) => setNExpedition(e.target.value)
+        }}
+      />
 
-        <FieldError error={errors.statut || optionsError.statut} />
-
-        <LabeledField label="Affaire">
-          <Select size="small" className="flex-1" value={affaire} onChange={setAffaire} />
-        </LabeledField>
-
-        <LabeledField label="Expédition">
-          <Select
-            size="small"
-            className="flex-1"
-            status={errors.expedition ? 'error' : undefined}
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            options={expeditionOptions}
-            value={expedition}
-            loading={optionsLoading.expedition}
-            onChange={onChange(setExpedition, 'expedition')}
-          />
-        </LabeledField>
-        <FieldError error={errors.expedition || optionsError.expedition} />
-      </div>
-
-      {/* Column 2 */}
-      <div className="flex flex-col gap-2">
-        <LabeledField label="Date" labelWidth={70}>
-          <DatePicker
-            size="small"
-            value={date}
-            status={errors.date ? 'error' : undefined}
-            onChange={onChange(setDate, 'date')}
-            format="DDMMYY"
-            disabled={piece}
-            className="w-full"
-            allowClear={false}
-          />
-        </LabeledField>
-        <FieldError error={errors.date} offset={78} />
-
-        <LabeledField label="Date livraison" labelWidth={70}>
-          <Select
-            size="small"
-            value={dateLivraisonStatut}
-            onChange={setDateLivraisonStatut}
-            className="w-24"
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            options={[{ value: 'Prévue', label: 'Prévue' }]}
-          />
-          <DatePicker
-            size="small"
-            value={dateLivraison}
-            status={errors.dateLivraison ? 'error' : undefined}
-            onChange={onChange(setDateLivraison, 'dateLivraison')}
-            placeholder="Date livraison"
-            format="DDMMYY"
-            disabledDate={(current) => current && current.startOf('day').isBefore(TODAY)}
-            className="w-full"
-            allowClear={false}
-          />
-        </LabeledField>
-        <FieldError error={errors.dateLivraison} offset={78} />
-
-        <LabeledField label="Représentant" labelWidth={70}>
-          <Select
-            size="small"
-            className="flex-1"
-            options={collaborateurs}
-            value={representant}
-            disabled={!piece}
-            onChange={(value) => addCollaborateur(value)}
-          />
-        </LabeledField>
-
-        <LabeledField label="N° Expédition" labelWidth={70}>
-          <Input
-            size="small"
-            className="flex-1"
-            value={nExpedition}
-            onChange={(e) => setNExpedition(e.target.value)}
-          />
-        </LabeledField>
-      </div>
-
-      {/* Column 3 */}
-      <div className="flex flex-col gap-2">
-        <LabeledField label="N° document" labelWidth={80}>
-          <Select
-            size="small"
-            value={nDocumentSouche}
-            status={errors.souche ? 'error' : undefined}
-            onChange={onChange(setNDocumentSouche, 'souche')}
-            className="w-28"
-            disabled={piece}
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            options={[
-              { value: 'Souche A', label: 'Souche A' },
-              { value: 'Souche B', label: 'Souche B' }
-            ]}
-          />
-          <Input size="small" disabled value={nDocumentNumero} className="flex-1" />
-        </LabeledField>
-        <FieldError error={errors.souche} offset={88} />
-
-        <LabeledField label="Référence" labelWidth={80}>
-          <Input
-            size="small"
-            status={errors.reference ? 'error' : undefined}
-            value={reference}
-            onChange={onChange(setReference, 'reference')}
-            className="flex-1"
-          />
-        </LabeledField>
-        <FieldError error={errors.reference} offset={88} />
-
-        <LabeledField label="Type" labelWidth={80}>
-          <Select
-            size="small"
-            className="w-full"
-            status={errors.type ? 'error' : undefined}
-            suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
-            value={type}
-            onChange={onChange(setType, 'type')}
-            options={[
-              { value: 'Cuisine', label: 'Cuisine' },
-              { value: 'Placard', label: 'Placard' },
-              { value: 'Laca', label: 'Laca' },
-              { value: 'Stock', label: 'Stock' },
-              { value: 'Polilaminado', label: 'Polilaminado' },
-              { value: 'Parquet', label: 'Parquet' }
-            ]}
-          />
-        </LabeledField>
-        <FieldError error={errors.type} offset={88} />
-
-        <LabeledField label="Port" labelWidth={80}>
-          <Input
-            size="small"
-            className="flex-1"
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
-            onPressEnter={handleValidate}
-            disabled={submitting}
-          />
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            className="!border-blue-400 !text-blue-600"
-            onClick={handleValidate}
-            loading={submitting}
-          >
-            Valider
-          </Button>
-        </LabeledField>
-      </div>
+      <DocumentColumn
+        souche={{
+          value: nDocumentSouche,
+          error: errors.souche,
+          disabled: piece,
+          onChange: onChange(setNDocumentSouche, 'souche')
+        }}
+        numero={nDocumentNumero}
+        reference={{
+          value: reference,
+          error: errors.reference,
+          onChange: onChange(setReference, 'reference')
+        }}
+        type={{
+          value: type,
+          error: errors.type,
+          onChange: handleTypeChange
+        }}
+        port={{
+          value: port,
+          onChange: (e) => setPort(e.target.value)
+        }}
+        submitting={submitting}
+        onValidate={() => handleValidate()}
+      />
     </div>
   )
 }

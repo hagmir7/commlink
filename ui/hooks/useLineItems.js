@@ -23,7 +23,9 @@ function toLineItem(article) {
     indent: article.indent ?? false,
     description: article.description ?? false,
     conditionnement: article.conditionnement ?? false,
-    profondeur: article.profondeur ?? false
+    profondeur: article.profondeur ?? false,
+    nom: article.nom ?? false,
+    episseur: article.episseur ?? 0
   }
 }
 

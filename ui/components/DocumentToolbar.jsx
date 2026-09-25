@@ -47,13 +47,13 @@ export default function DocumentToolbar({ document, documentType }) {
   return (
     <>
       <div className="shrink-0 flex items-stretch bg-white border-b border-gray-300">
-        <ToolbarButton icon={<SettingOutlined />} label="Fonctions" />
+        <ToolbarButton icon={<SettingOutlined />} label="Fonctions" disabled />
 
-        <ToolbarButton icon={<BarChartOutlined />} label="Barèmes" />
+        <ToolbarButton icon={<BarChartOutlined />} label="Barèmes" disabled />
 
-        <ToolbarButton icon={<InfoCircleOutlined />} label="Informations" />
+        <ToolbarButton icon={<InfoCircleOutlined />} label="Informations" disabled />
 
-        <ToolbarButton icon={<CaretDownOutlined />} label="Pied" />
+        <ToolbarButton icon={<CaretDownOutlined />} label="Pied" disabled />
 
         <ToolbarButton icon={<PrinterOutlined />} label="Imprimer" />
 

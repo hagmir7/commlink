@@ -77,3 +77,38 @@ export const STATUT_COLORS = {
   Annulé: 'red',
   Clôturé: 'default'
 }
+
+export const FIELD_LABELS = {
+  reference: 'Référence',
+  client: 'Client',
+  date: 'Date',
+  dateLivraison: 'Date livraison',
+  statut: 'Statut',
+  expedition: 'Expédition',
+  type: 'Type',
+  souche: 'Souche'
+}
+
+export const REQUIRED_FIELDS = Object.keys(FIELD_LABELS)
+
+export const DEFAULT_STATUT = {
+  name: 'DocumentStatutTypeSaisie',
+  value: 0,
+  label: 'Saisi'
+}
+
+export const SOUCHE_OPTIONS = [
+  { value: 'Souche A', label: 'Souche A' },
+  { value: 'Souche B', label: 'Souche B' }
+]
+
+export const TYPE_OPTIONS = [
+  { value: 'Cuisine', label: 'Cuisine' },
+  { value: 'Placard', label: 'Placard' },
+  { value: 'Laca', label: 'Laca' },
+  { value: 'Stock', label: 'Stock' },
+  { value: 'Polilaminado', label: 'Polilaminado' },
+  { value: 'Parquet', label: 'Parquet' }
+]
+
+export const DATE_LIVRAISON_STATUT_OPTIONS = [{ value: 'Prévue', label: 'Prévue' }]

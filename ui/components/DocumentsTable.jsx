@@ -3,6 +3,7 @@ import { Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { DOCUMENT_TYPES, STATUT_COLORS } from '../constants/documentTypes'
 import { Printer, Settings } from 'lucide-react'
+import { getStatut } from '../utils/helpers'
 
 function TypeBadge({ type }) {
   const config = DOCUMENT_TYPES.find((d) => d.type === type)
@@ -31,7 +32,7 @@ export default function DocumentsTable({
   onOpenRow
 }) {
   const columns = [
-    { title: 'Type', key: 'type', width: 50, render: () => <TypeBadge type={documentType} /> },
+    // { title: 'Type', key: 'type', width: 50, render: () => <TypeBadge type={documentType} /> },
     {
       title: 'Etat',
       key: 'etat',
@@ -60,11 +61,16 @@ export default function DocumentsTable({
       dataIndex: 'statut',
       key: 'statut',
       width: 120,
-      render: (statut) => (
-        <Tag color={STATUT_COLORS[statut] || 'default'} className="!m-0">
-          {statut}
-        </Tag>
-      )
+      render: (_, row) => {
+        // getStatut returns a full { name, value, label } object — never render it directly.
+        const statutInfo = getStatut(Number(row?.type), Number(row?.statut))
+
+        return (
+          <Tag color={STATUT_COLORS[statutInfo?.name] || 'default'} className="!m-0">
+            {statutInfo?.label ?? ''}
+          </Tag>
+        )
+      }
     },
     { title: 'N° pièce', dataIndex: 'piece', key: 'piece', width: 130 },
     { title: 'Référence', dataIndex: 'ref', key: 'ref', width: 140 },
@@ -76,7 +82,6 @@ export default function DocumentsTable({
       render: (d) => (d ? dayjs(d).format('DDMMYY') : '')
     },
     { title: 'N° client', dataIndex: 'clientCode', key: 'clientCode', width: 100 },
-    // { title: 'Hors taxe', dataIndex: 'totalHT', key: 'totalHT', width: 110, align: 'right', render: formatMoney },
     {
       title: 'Hors taxe',
       key: 'totalHT',
@@ -87,16 +92,19 @@ export default function DocumentsTable({
     { title: 'Intitulé client', dataIndex: 'clientIntitule', key: 'clientIntitule', width: 220 }
   ]
 
+  // "piece" alone isn't guaranteed unique across types/domaines — combine with type to avoid
+  // React's "two children with the same key" warning and mismatched row identity.
+  const rowKey = (row) => `${row.type}-${row.piece}`
+
   return (
     <Table
       size="small"
-      rowKey="piece"
+      rowKey={rowKey}
       loading={loading}
       columns={columns}
       dataSource={documents}
       pagination={false}
-
-      scroll={{ x: 'max-content', y: 'calc(100vh - 260px)' }}
+      scroll={{ x: 'max-content', y: 'calc(115vh - 260px)' }}
       onRow={(row) => ({
         onClick: () => onSelectRow(row.piece),
         onDoubleClick: () => onOpenRow(row),

@@ -9,6 +9,8 @@ import { api } from '../utils/api'
 import { handleShow } from '../utils/helpers'
 import SelectDocumentTypeModal from '../components/NewDocumentModal'
 
+const POLL_INTERVAL_MS = 30_000
+
 export default function Home() {
   const navigate = useNavigate()
 
@@ -34,7 +36,7 @@ export default function Home() {
   const [reloadKey, setReloadKey] = useState(0)
   const [clientOptions, setClientOptions] = useState([])
 
-  // --- fetch clients once on mount ------------------------------------
+  // --- fetch clients once on mount -------------------------------------
   useEffect(() => {
     api
       .get(`/clients?max=1000`)
@@ -57,12 +59,19 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [search])
 
-  // --- fetch documents whenever filters / sort / page change ------------
+  // --- fetch documents whenever filters / sort / page change, + poll ----
   useEffect(() => {
     let isCancelled = false
+    let inFlight = false
 
-    async function loadDocuments() {
-      setLoading(true)
+    async function loadDocuments({ silent = false } = {}) {
+      // prevent overlapping requests (poll can fire while a slow fetch is running)
+      if (inFlight) return
+      inFlight = true
+
+      // only show the spinner for user-initiated fetches, not for polls/refreshes
+      if (!silent) setLoading(true)
+
       try {
         const params = { page, pageSize }
 
@@ -91,18 +100,24 @@ export default function Home() {
           setTotalItems(0)
         }
       } finally {
-        if (!isCancelled) setLoading(false)
+        inFlight = false
+        if (!isCancelled && !silent) setLoading(false)
       }
     }
 
+    // initial fetch (with spinner)
     loadDocuments()
+
+    // poll every 30s (silent — no spinner flash)
+    const intervalId = setInterval(() => loadDocuments({ silent: true }), POLL_INTERVAL_MS)
 
     return () => {
       isCancelled = true
+      clearInterval(intervalId)
     }
   }, [documentType, clientCode, dateRange, debouncedSearch, sortOrder, page, pageSize, reloadKey])
 
-  // --- handlers (each filter change goes back to page 1) ----------------
+  // --- handlers (each filter change goes back to page 1) ---------------
   const handleSelectType = (type) => {
     setDocumentType(type)
     setSelectedRowKey(null)
@@ -142,16 +157,44 @@ export default function Home() {
     try {
       await api.delete(`/documents/${documentType.type}/${selectedRowKey}`)
       setSelectedRowKey(null)
-      setReloadKey((k) => k + 1) // re-fetch the list
+      setReloadKey((k) => k + 1)
     } catch (error) {
       console.error('Failed to delete document:', error)
     }
   }
 
+  // --- refresh button --------------------------------------------------
+  const handleRefresh = () => {
+    // bump reloadKey to trigger an immediate refetch
+    setReloadKey((k) => k + 1)
+  }
+
+  // --- active filters count + clear-all --------------------------------
+  const isDefaultType = documentType?.type === DEFAULT_DOCUMENT_TYPE?.type
+  const hasDateFilter = !!(dateRange?.[0] || dateRange?.[1])
+
+  const activeFilterCount =
+    (isDefaultType ? 0 : 1) +
+    (clientCode ? 1 : 0) +
+    (hasDateFilter ? 1 : 0) +
+    (debouncedSearch ? 1 : 0) +
+    (sortOrder ? 1 : 0)
+
+  const handleClearFilters = () => {
+    setDocumentType(DEFAULT_DOCUMENT_TYPE)
+    setClientCode(null)
+    setDateRange(['', ''])
+    setSearch('')
+    setDebouncedSearch('')
+    setSortOrder('')
+    setPage(1)
+    setSelectedRowKey(null)
+  }
+
   return (
     <div className="flex flex-col h-screen bg-white">
       <div className="flex flex-1">
-        <DocumentsSidebar activeType={documentType.type} onSelect={handleSelectType} />
+        <DocumentsSidebar activeType={documentType?.type} onSelect={handleSelectType} />
 
         <div className="flex flex-col flex-1 min-w-0">
           <DocumentsToolbar
@@ -162,6 +205,10 @@ export default function Home() {
             onDateRangeChange={handleDateRangeChange}
             search={search}
             onSearchChange={setSearch}
+            // --- new props ---
+            onRefresh={handleRefresh}
+            activeFilterCount={activeFilterCount}
+            onClearFilters={handleClearFilters}
           />
 
           <div className="flex-1 h-screen">

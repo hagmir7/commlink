@@ -53,7 +53,9 @@ const COLUMN_DEFS = [
   },
   { key: 'remise', title: 'Remise', defaultWidth: 60, placeholder: 'Remise' },
   { key: 'description', title: 'Description', defaultWidth: 200, placeholder: 'Description' },
-  { key: 'profondeur', title: 'Profondeur', defaultWidth: 100, placeholder: 'Profondeur' }
+  { key: 'profondeur', title: 'Profondeur', defaultWidth: 100, placeholder: 'Profondeur' },
+  { key: 'nom', title: 'Nom', defaultWidth: 100, placeholder: 'Nom' },
+  { key: 'episseur', title: 'Episseur', defaultWidth: 100, placeholder: 'Episseur' }
 ]
 
 const MIN_COLUMN_WIDTH = 50
@@ -79,7 +81,8 @@ const EMPTY_FORM = {
   conditionnement: '',
   remise: '',
   description: '',
-  profondeur: ''
+  profondeur: '',
+  nom: ''
 }
 
 export const rowId = (record) => `${record.articleRef}-${record.key}`
@@ -254,8 +257,9 @@ const DocumentLines = forwardRef(function DocumentLines(
       quantityColisee: record.quantityColisee ?? '',
       conditionnement: activeConditionnement,
       remise: record.remise ?? '',
-      description: record.description ?? '',
-      profondeur: record.profondeur
+      description: record.description ? record.description : '',
+      profondeur: record.profondeur ? record.profondeur : '',
+      episseur: record.episseur ? record.episseur : 0
     })
   }
 
@@ -283,8 +287,11 @@ const DocumentLines = forwardRef(function DocumentLines(
       remiseValeur: Number(formValues.remise) || undefined,
       remiseType: formValues.remiseType ?? undefined,
       couleur: formValues.couleur,
-      profondeur: formValues.profondeur || 0
+      nom: formValues.nom ? formValues.nom : '',
+      profondeur: Number(formValues.profondeur) ? formValues.profondeur : 0
     }
+
+    console.log(payload)
 
     if (formValues.conditionnement) {
       const qteParCond = conditionnementMeta[formValues.conditionnement]?.qte

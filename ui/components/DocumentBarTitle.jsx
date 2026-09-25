@@ -1,6 +1,9 @@
 import { BorderOutlined, CloseOutlined, MinusOutlined } from '@ant-design/icons'
+import { getDocumentTypeLabel, getStatut } from '../utils/helpers'
+import { DOCUMENT_TYPES } from '../constants/documentTypes'
 
-export default function DocumentBarTitle({ piece, document }) {
+export default function DocumentBarTitle({ piece, document, documentType }) {
+  console.log(documentType)
   return (
     <div
       className="shrink-0 h-8 flex items-center justify-between bg-gradient-to-b from-white to-gray-100 border-b border-gray-300 select-none"
@@ -13,11 +16,14 @@ export default function DocumentBarTitle({ piece, document }) {
 
         {piece ? (
           <span className="text-[13px] text-gray-800 font-semibold truncate">
-            Bon de commande : {document?.statut ?? 'Chargement...'} N° {piece}{' '}
+            {getDocumentTypeLabel(document?.doType)} :{' '}
+            {getStatut(document?.doType, document?.statut)?.label ?? 'Chargement...'} N° {piece}{' '}
             {document?.clientCode ?? ''} {document?.clientIntitule ?? ''}
           </span>
         ) : (
-          <span className="text-[13px] text-gray-800">Nouveau Devis</span>
+          <span className="text-[13px] text-gray-800">
+            Nouveau {DOCUMENT_TYPES.find((item) => item.type === documentType).label}
+          </span>
         )}
       </div>
 

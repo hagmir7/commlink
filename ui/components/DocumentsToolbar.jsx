@@ -1,6 +1,12 @@
 import React from 'react'
-import { DatePicker, Dropdown, Input, Select } from 'antd'
-import { DownOutlined, SearchOutlined, SettingOutlined, StarOutlined } from '@ant-design/icons'
+import { DatePicker, Dropdown, Input, Select, Badge, Tooltip } from 'antd'
+import {
+  CloseOutlined,
+  DownOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
 
 const { RangePicker } = DatePicker
 
@@ -11,7 +17,10 @@ export default function DocumentsToolbar({
   dateRange,
   onDateRangeChange,
   search,
-  onSearchChange
+  onSearchChange,
+  onRefresh,
+  activeFilterCount = 0,
+  onClearFilters
 }) {
   const filterContent = (
     <div className="p-3 w-72 flex flex-col gap-3 bg-white shadow-lg rounded border border-gray-200">
@@ -58,7 +67,40 @@ export default function DocumentsToolbar({
           <SearchOutlined /> Filtrer <DownOutlined style={{ fontSize: 9 }} />
         </span>
       </Dropdown>
+
+      {/* Active filters badge — click to clear all filters */}
+      {activeFilterCount > 0 && (
+        <Tooltip title="Effacer tous les filtres">
+          <Badge count={activeFilterCount} size="small" offset={[2, -2]}>
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full
+                         bg-blue-50 text-blue-700 border border-blue-200
+                         hover:bg-blue-100 text-[12px] cursor-pointer whitespace-nowrap"
+            >
+              Filtres actifs
+              <CloseOutlined style={{ fontSize: 9 }} />
+            </button>
+          </Badge>
+        </Tooltip>
+      )}
+
       <div className="flex-1" />
+
+      {/* Refresh button */}
+      <Tooltip title="Rafraîchir">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="flex items-center justify-center w-7 h-7 rounded
+                     text-gray-600 hover:text-blue-600 hover:bg-gray-100
+                     cursor-pointer border-none bg-transparent"
+          aria-label="Rafraîchir"
+        >
+          <ReloadOutlined />
+        </button>
+      </Tooltip>
 
       <Input
         size="small"
