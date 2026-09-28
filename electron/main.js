@@ -1,7 +1,11 @@
-const { app, shell, BrowserWindow, ipcMain } = require('electron')
+const { app, shell, BrowserWindow, ipcMain, net } = require('electron')
 const { join } = require('node:path')
 const { electronApp, optimizer, is } = require('@electron-toolkit/utils')
 const { createShowWindow, setMainWindow } = require('./windows/showWindow.js')
+const { pipeline } = require('stream/promises')
+const { Readable } = require('stream')
+const path = require('node:path')
+const fs = require('fs')
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -66,3 +70,45 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+async function downloadPdf(url) {
+  const filePath = path.join(app.getPath('temp'), `print-${Date.now()}.pdf`)
+
+  const response = await net.fetch(url) // or global fetch in Electron 28+
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+
+  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(filePath))
+  return filePath
+}
+
+async function printPdf(filePath, printerName, { duplex = false } = {}) {
+  if (process.platform === 'win32') {
+    const { print } = require('pdf-to-printer')
+    // Always send the value explicitly so the printer's default is never used
+    const opts = { sides: duplex ? 'duplexlong' : 'simplex' }
+    if (printerName) opts.printer = printerName
+    await print(filePath, opts)
+  } else {
+    const { print } = require('unix-print')
+    const sides = duplex ? 'two-sided-long-edge' : 'one-sided'
+    await print(filePath, printerName || undefined, [`-o sides=${sides}`])
+  }
+}
+
+ipcMain.handle('print-pdf-from-url', async (_e, url, printerName, options) => {
+  console.log('print options:', { printerName, duplex: options?.duplex })
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'https:') throw new Error('Only https URLs are allowed')
+
+  const file = await downloadPdf(url)
+  try {
+    await printPdf(file, printerName, { duplex: options?.duplex === true })
+    return { success: true }
+  } catch (error) {
+    console.error('print error:', error)
+    return { success: false, error: error.message }
+  } finally {
+    fs.unlink(file, () => {})
+  }
+})
+ipcMain.handle('get-printers', (e) => e.sender.getPrintersAsync())

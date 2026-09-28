@@ -102,6 +102,20 @@ export const SOUCHE_OPTIONS = [
   { value: 'Souche B', label: 'Souche B' }
 ]
 
+// Livraison
+export const Livraison = [
+  { value: 'En gare', label: 'En gare' },
+  { value: 'À domicile', label: 'À domicile' }
+]
+
+// Nature de Marchandises
+export const NatureMarchandises = [
+  { value: 'Normale', label: 'Normale' },
+  { value: 'Fragile', label: 'Fragile' },
+  { value: 'Trés Fragile', label: 'Trés Fragile' }
+]
+
+// Type
 export const TYPE_OPTIONS = [
   { value: 'Cuisine', label: 'Cuisine' },
   { value: 'Placard', label: 'Placard' },
@@ -109,6 +123,12 @@ export const TYPE_OPTIONS = [
   { value: 'Stock', label: 'Stock' },
   { value: 'Polilaminado', label: 'Polilaminado' },
   { value: 'Parquet', label: 'Parquet' }
+]
+
+// Messagerie
+export const Messagerie = [
+  { value: 'Express', label: 'Express' },
+  { value: 'Simple', label: 'Simple' }
 ]
 
 export const DATE_LIVRAISON_STATUT_OPTIONS = [{ value: 'Prévue', label: 'Prévue' }]

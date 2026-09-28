@@ -5,5 +5,8 @@ contextBridge.exposeInMainWorld('api', {
   minimizeWindow: (piece) => ipcRenderer.send('window-minimize', piece),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
-  restoreWindow: () => ipcRenderer.send('window-restore')
+  restoreWindow: () => ipcRenderer.send('window-restore'),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
+  printPdf: (url, printerName, options) =>
+    ipcRenderer.invoke('print-pdf-from-url', url, printerName, options)
 })

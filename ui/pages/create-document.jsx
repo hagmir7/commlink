@@ -83,11 +83,7 @@ export default function CreateDocument() {
 
       return response.data
     } catch (error) {
-      const errorData = error.response?.data
-
-      message.error(
-        errorData?.detail || errorData?.title || 'Erreur lors de la modification du document'
-      )
+      message.error(error.response?.data?.message || 'Erreur lors de la modification du document')
 
       throw error
     }

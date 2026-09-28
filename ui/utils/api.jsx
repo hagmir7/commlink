@@ -8,7 +8,7 @@ const getAuthToken = () => {
 }
 
 let baseURL = localStorage.getItem('connection_url') || 'http://localhost:5006'
-
+export const BASE_URL = 'https://localhost:7244'
 export const api = axios.create({
   baseURL,
   headers: {
