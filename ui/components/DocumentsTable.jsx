@@ -116,12 +116,12 @@ export default function DocumentsTable({
       onRow={(row) => ({
         onClick: () => onSelectRow(row.piece),
         onDoubleClick: () => onOpenRow(row),
-        className: row.piece === selectedRowKey ? '!bg-blue-50 cursor-pointer' : 'cursor-pointer'
+        className: row.piece === selectedRowKey ? 'row-selected cursor-pointer' : 'cursor-pointer'
       })}
       className="
         h-full whitespace-nowrap
       [&_.ant-table-thead_.ant-table-cell]:bg-[#f0f0f0]
-        [&_.ant-table-thead_.ant-table-cell]:text-[12px] 
+        [&_.ant-table-thead_.ant-table-cell]:text-[12px]
 
         [&_.ant-table-tbody_.ant-table-cell]:py-1
         [&_.ant-table-content]:overflow-visible!
@@ -134,8 +134,10 @@ export default function DocumentsTable({
         [&_.ant-table-tbody>tr>td]:!px-2
         [&_.ant-table-tbody>tr>td]:overflow-hidden
         [&_.ant-table-tbody>tr>td]:text-ellipsis
-        [&_.ant-table-tbody>tr>td]:text-sm
-              "
+         [&_.ant-table-tbody>tr.row-selected>td]:!bg-blue-100
+        [&_.ant-table-tbody>tr.row-selected:hover>td]:!bg-blue-100
+        [&_.ant-table-tbody>tr.row-selected>td.ant-table-cell-row-hover]:!bg-blue-100
+        [&_.ant-table-tbody>tr>td]:text-sm"
     />
   )
 }
