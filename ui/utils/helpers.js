@@ -18,8 +18,6 @@ export const getCompany = (id) => {
 }
 
 export const handleShow = async (navigate, path, width = 1400, height = 800) => {
-  console.log(window.api)
-
   try {
     if (window.api) {
       await window.api.openShow({

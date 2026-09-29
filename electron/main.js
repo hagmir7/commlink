@@ -1,84 +1,216 @@
-const { app, shell, BrowserWindow, ipcMain, net } = require('electron')
-const { join } = require('node:path')
-const { electronApp, optimizer, is } = require('@electron-toolkit/utils')
-const { createShowWindow, setMainWindow } = require('./windows/showWindow.js')
-const { pipeline } = require('stream/promises')
-const { Readable } = require('stream')
+const { app, shell, BrowserWindow, ipcMain, net, Tray, Menu, nativeImage } = require('electron')
 const path = require('node:path')
 const fs = require('fs')
+const { pipeline } = require('stream/promises')
+const { Readable } = require('stream')
+const { electronApp, optimizer, is } = require('@electron-toolkit/utils')
+
+const { default: createLoginWindow } = require('./windows/loginWindow')
+const { createShowWindow, setMainWindow } = require('./windows/showWindow.js')
+const { saveSession, loadSession, clearSession } = require('./session')
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+// Must match the appId used to build/package the app (electron-builder config).
+const APP_ID = 'com.intercocina.commlink'
+const APP_NAME = 'Commlink'
+
+// Small (16x16 / 32x32) png, ideally with an @2x variant next to it.
+const TRAY_ICON_PATH = path.join(__dirname, 'assets', 'trayIcon.png')
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let mainWindow = null
+let loginWindow = null
+let showWindow = null
+let tray = null
+
+// True once the user (or the OS) has actually asked to quit, as opposed to
+// just closing the window. Closing the window should hide it, not quit.
+let isQuitting = false
+
+let currentSession = loadSession()
+
+// ---------------------------------------------------------------------------
+// Single instance lock
+// ---------------------------------------------------------------------------
+//
+// requestSingleInstanceLock() returns false in the SECOND process (the one
+// that just got launched) — that process should just quit. It returns true
+// in the FIRST/original process, which is where we listen for
+// "second-instance" so we can bring the existing window to front instead.
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
+    } else if (currentSession?.access_token) {
+      mainWindow = createWindow()
+    } else if (loginWindow && !loginWindow.isDestroyed()) {
+      loginWindow.show()
+      loginWindow.focus()
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Windows-only: fixes notifications showing "Electron" as the app name.
+// Must be set before app.whenReady().
+// ---------------------------------------------------------------------------
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_ID)
+}
+
+// ---------------------------------------------------------------------------
+// Window helpers
+// ---------------------------------------------------------------------------
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1500,
     height: 800,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      sandbox: false,
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
       nodeIntegration: false,
-      contextIsolation: true
+      // Set to true if your preload doesn't need Node APIs directly.
+      sandbox: false
     }
   })
 
-  setMainWindow(mainWindow)
+  setMainWindow(win)
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
+  }
+
+  win.once('ready-to-show', () => {
+    if (win && !win.isDestroyed()) win.show()
+  })
+
+  // Intercept the close button: hide to tray instead of quitting.
+  // Only let the window actually close when the app is genuinely quitting.
+  win.on('close', (event) => {
+    if (isQuitting) return
+
+    event.preventDefault()
+    win.hide()
+  })
+
+  win.on('closed', () => {
+    mainWindow = null
+  })
+
+  return win
+}
+
+function showOrCreateMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+  } else {
+    mainWindow = createWindow()
   }
 }
 
-ipcMain.handle('openShow', async (_event, payload) => {
-  try {
-    const win = createShowWindow(payload)
-    return { success: true, id: win.id }
-  } catch (error) {
-    console.error('openShow error:', error)
-    return { success: false, error: error.message }
-  }
-})
+function createTray() {
+  if (tray) return tray
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.intercocina.commlink')
+  const icon = nativeImage.createFromPath(TRAY_ICON_PATH)
+  tray = new Tray(icon)
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+  tray.setToolTip(APP_NAME)
 
-  createWindow()
+  const contextMenu = Menu.buildFromTemplate([
+    { label: `Open ${APP_NAME}`, click: showOrCreateMainWindow },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
+  ])
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+  tray.setContextMenu(contextMenu)
+
+  tray.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      mainWindow.hide()
+    } else {
+      showOrCreateMainWindow()
     }
   })
-})
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+  return tray
+}
+
+async function closeWindowIfOpen(win) {
+  if (win && !win.isDestroyed()) {
+    await new Promise((resolve) => {
+      win.once('closed', resolve)
+      win.close()
+    })
   }
-})
+}
+
+// ---------------------------------------------------------------------------
+// Session lifecycle helpers
+// ---------------------------------------------------------------------------
+
+function handleLoginSuccess(data) {
+  currentSession = data
+  saveSession(data)
+
+  if (loginWindow && !loginWindow.isDestroyed()) {
+    loginWindow.close()
+  }
+  loginWindow = null
+
+  showOrCreateMainWindow()
+  createTray()
+}
+
+// ---------------------------------------------------------------------------
+// Printing helpers
+// ---------------------------------------------------------------------------
 
 async function downloadPdf(url) {
   const filePath = path.join(app.getPath('temp'), `print-${Date.now()}.pdf`)
 
-  const response = await net.fetch(url) // or global fetch in Electron 28+
-  if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+  try {
+    const response = await net.fetch(url)
+    if (!response.ok) throw new Error(`Download failed: ${response.status}`)
 
-  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(filePath))
-  return filePath
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(filePath))
+    return filePath
+  } catch (error) {
+    fs.unlink(filePath, () => {})
+    throw error
+  }
 }
 
 async function printPdf(filePath, printerName, { duplex = false } = {}) {
@@ -95,20 +227,154 @@ async function printPdf(filePath, printerName, { duplex = false } = {}) {
   }
 }
 
-ipcMain.handle('print-pdf-from-url', async (_e, url, printerName, options) => {
-  console.log('print options:', { printerName, duplex: options?.duplex })
-  const parsed = new URL(url)
-  if (parsed.protocol !== 'https:') throw new Error('Only https URLs are allowed')
+// ---------------------------------------------------------------------------
+// IPC handlers
+// ---------------------------------------------------------------------------
 
-  const file = await downloadPdf(url)
+ipcMain.handle('app:get-version', () => app.getVersion())
+
+ipcMain.handle('login', async (_event, data) => {
   try {
+    if (!data?.token) {
+      return { success: false, error: 'Access token missing.' }
+    }
+
+    handleLoginSuccess(data)
+    return { success: true }
+  } catch (error) {
+    console.error('Login error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('logout', async () => {
+  try {
+    currentSession = null
+    clearSession()
+
+    if (tray) {
+      tray.destroy()
+      tray = null
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      isQuitting = true // allow this specific close to go through
+      mainWindow.close()
+      mainWindow = null
+      isQuitting = false // restore hide-to-tray behavior for the next window
+    }
+
+    if (!loginWindow || loginWindow.isDestroyed()) {
+      loginWindow = createLoginWindow()
+    } else {
+      loginWindow.show()
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('Logout error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-session', () => currentSession)
+
+ipcMain.handle('openShow', async (_event, payload) => {
+  try {
+    await closeWindowIfOpen(showWindow)
+
+    showWindow = createShowWindow(payload)
+    showWindow.show()
+
+    return { success: true, id: showWindow.id }
+  } catch (error) {
+    console.error('openShow error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-printers', (e) => e.sender.getPrintersAsync())
+
+ipcMain.handle('print-pdf-from-url', async (e, url, printerName, options) => {
+  let file
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') throw new Error('Only https URLs are allowed')
+
+    // Only allow printers the OS actually reports.
+    if (printerName) {
+      const printers = await e.sender.getPrintersAsync()
+      if (!printers.some((p) => p.name === printerName)) {
+        throw new Error('Unknown printer')
+      }
+    }
+
+    file = await downloadPdf(url)
     await printPdf(file, printerName, { duplex: options?.duplex === true })
     return { success: true }
   } catch (error) {
     console.error('print error:', error)
     return { success: false, error: error.message }
   } finally {
-    fs.unlink(file, () => {})
+    if (file) fs.unlink(file, () => {})
   }
 })
-ipcMain.handle('get-printers', (e) => e.sender.getPrintersAsync())
+
+// ---------------------------------------------------------------------------
+// App lifecycle
+// ---------------------------------------------------------------------------
+
+if (gotSingleInstanceLock) {
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId(APP_ID)
+
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    if (currentSession?.access_token) {
+      mainWindow = createWindow()
+      createTray()
+    } else {
+      loginWindow = createLoginWindow()
+    }
+  })
+}
+
+// The main window hides instead of closing, so this only fires in edge
+// cases (e.g. the login window closing before a session exists). Don't quit
+// while a session is active — the tray keeps the app alive.
+app.on('window-all-closed', () => {
+  if (mainWindow || currentSession?.access_token) return
+
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+// Fired by Cmd+Q / Quit menu item / app.quit(). Make sure the "close"
+// handler on the window lets it close instead of hiding it again.
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
+app.on('activate', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+  } else if (currentSession?.access_token) {
+    mainWindow = createWindow()
+  } else if (!loginWindow || loginWindow.isDestroyed()) {
+    loginWindow = createLoginWindow()
+  }
+})
+
+ipcMain.handle('user', async (event, data) => {
+  try {
+    if (!data?.access_token) return null
+    handleLoginSuccess(data)
+    return true
+  } catch (error) {
+    console.log(error)
+    return null
+  }
+})

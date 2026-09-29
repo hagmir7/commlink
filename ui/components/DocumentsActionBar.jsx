@@ -1,5 +1,7 @@
 import { Button, Dropdown } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
+import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export default function DocumentsActionBar({
   onNouveau,
@@ -9,12 +11,29 @@ export default function DocumentsActionBar({
   canOpen,
   canDelete
 }) {
+  const navigate = useNavigate()
+
+  const handleLogout = useCallback(async () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+
+    try {
+      if (window.api) {
+        await window.api.logout()
+      } else {
+        navigate('/login')
+      }
+    } catch (error) {
+      console.error('Logout failed:', error)
+    }
+  }, [navigate])
+
   return (
     <div className="flex items-center justify-between px-3 py-2 border-t border-gray-300 bg-[#f0f0f0]">
       <Dropdown
         menu={{
           items: [
-            { key: 'export', label: 'Exporter' },
+            { key: 'logout', label: 'Déconnexion', onClick: handleLogout },
             { key: 'print', label: 'Imprimer' }
           ]
         }}
@@ -35,9 +54,7 @@ export default function DocumentsActionBar({
         <Button size="small" danger disabled={!canDelete} onClick={onDelete}>
           Supprimer
         </Button>
-        <Button size="small" onClick={onClose}>
-          Fermer
-        </Button>
+        <Button size="small">Fermer</Button>
       </div>
     </div>
   )

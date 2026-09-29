@@ -13,6 +13,16 @@ const { Title, Text } = Typography
 // Default connection
 const DEFAULT_CONNECTION = 'http://192.168.1.38:30/api/'
 
+// Sage palette (matches DesktopWindow)
+const SAGE = {
+  50: '#F4F6F1',
+  100: '#E7EBE0',
+  200: '#D2DAC4',
+  400: '#93A47C',
+  600: '#5F7052',
+  800: '#37402F'
+}
+
 const Login = () => {
   const [form] = Form.useForm()
   const navigate = useNavigate()
@@ -32,7 +42,6 @@ const Login = () => {
     }
   })
 
-  // Get api app version
   useEffect(() => {
     if (window.api?.getVersion) {
       window.api.getVersion().then(setAppVersion)
@@ -43,21 +52,19 @@ const Login = () => {
     localStorage.setItem('usernames', JSON.stringify(usernames))
   }, [usernames])
 
-  // Initialize default connection + form + auth check
   useEffect(() => {
     if (!localStorage.getItem('connection_url')) {
       localStorage.setItem('connection_url', DEFAULT_CONNECTION)
     }
 
     form.setFieldsValue({
-      login: import.meta.env.MODE === 'development' ? 'admin@admin.com' : '',
-      password: import.meta.env.MODE === 'development' ? 'password' : ''
+      login: import.meta.env.MODE === 'development' ? '<Administrateur>' : '',
+      password: import.meta.env.MODE === 'development' ? '' : ''
     })
 
     checkAuth()
   }, [form])
 
-  // Submit login
   const handleSubmit = async (values) => {
     try {
       setErrorType(null)
@@ -71,7 +78,6 @@ const Login = () => {
         return
       }
 
-      // Save username
       const updated = Array.from(new Set([values.login, ...usernames]))
 
       localStorage.setItem('usernames', JSON.stringify(updated))
@@ -93,7 +99,6 @@ const Login = () => {
     }
   }
 
-  // Automatically login if token already exists
   const checkAuth = async () => {
     const token = localStorage.getItem('authToken')
 
@@ -102,30 +107,21 @@ const Login = () => {
     }
 
     try {
-      const response = await api.get('user', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
+      const response = await api.get('auth/me')
 
       if (window.api) {
-        await window.api.user({
-          user: response.data,
-          access_token: token
-        })
+        console.log(token)
+        await window.api.user({ user: response.data, access_token: token })
       } else {
         navigate('/')
       }
     } catch (error) {
-      // Silent fail for automatic authentication
       console.error('Auth check failed:', error)
 
-      // Remove invalid token
       localStorage.removeItem('authToken')
     }
   }
 
-  // Error message
   const getErrorMessage = () => {
     if (errorType === 'network') {
       return (
@@ -144,45 +140,47 @@ const Login = () => {
   }
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#0d3b2e] flex flex-col">
+    <div
+      className="relative min-h-screen w-full overflow-hidden flex flex-col"
+      style={{ backgroundColor: SAGE[50] }}
+    >
       {/* Title bar */}
-      <TitleBar title="SMQ Pro — Connexion" />
-
+      <TitleBar title="Comlink — Connexion" />
       {/* Main content */}
       <div className="relative flex-1 w-full flex items-center justify-center">
         {/* Background gradient */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              'radial-gradient(circle at 15% 20%, rgba(74, 222, 128, 0.18), transparent 45%), radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.20), transparent 50%), linear-gradient(160deg, #0d3b2e 0%, #114b3a 45%, #1a5c46 100%)'
+            background: `radial-gradient(circle at 15% 20%, ${SAGE[100]} 0%, transparent 45%), radial-gradient(circle at 85% 80%, ${SAGE[200]} 0%, transparent 50%), linear-gradient(160deg, ${SAGE[50]} 0%, ${SAGE[100]} 45%, ${SAGE[200]} 100%)`
           }}
         />
 
         {/* Background pattern */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          className="pointer-events-none absolute inset-0 opacity-[0.10]"
           style={{
-            backgroundImage:
-              'repeating-linear-gradient(45deg, #ffffff 0px, #ffffff 1px, transparent 1px, transparent 22px)'
+            backgroundImage: `repeating-linear-gradient(45deg, ${SAGE[800]} 0px, ${SAGE[800]} 1px, transparent 1px, transparent 22px)`
           }}
         />
 
         {/* Login container */}
         <div className="relative w-full sm:max-w-md md:max-w-lg px-6 py-10 sm:px-10">
           {/* Logo + title */}
-          <div className="relative z-10 text-center mb-8">
-            <img
-              className="h-14 mx-auto mb-5"
-              // src="https://app.intercocina.com/assets/imgs/intercocina-logo.png"
-              alt="Intercocina"
-            />
+          <div className="relative z-10 text-center inline justify-center mb-8">
+            <div className="flex w-full justify-center">
+              <img
+                className="h-14 mx-auto text-center mb-5"
+                alt="Intercocina"
+                src="https://www.intercocina.com/_next/image?url=https%3A%2F%2Fapp.intercocina.com%2Fassets%2Fimgs%2Fintercocina-logo.png&w=256&q=75"
+              />
+            </div>
 
-            <Title level={4} className="!mb-1 !text-white mt-0 pt-0">
+            <Title level={4} className="!mb-1 mt-0 pt-0" style={{ color: SAGE[800] }}>
               Connectez-vous
             </Title>
 
-            <Text className="text-emerald-100">
+            <Text style={{ color: SAGE[600] }}>
               Entrez vos identifiants pour accéder à votre compte.
             </Text>
           </div>
@@ -200,7 +198,8 @@ const Login = () => {
                     size="small"
                     type="link"
                     onClick={() => setIsModalOpen(true)}
-                    className="text-emerald-800 hover:!text-emerald-900 whitespace-nowrap"
+                    className="whitespace-nowrap"
+                    style={{ color: SAGE[800] }}
                   >
                     Changer la connexion
                   </Button>
@@ -220,7 +219,11 @@ const Login = () => {
             {/* Login */}
             <Form.Item
               name="login"
-              label={<span className="font-medium text-emerald-50">E-mail ou Matricule</span>}
+              label={
+                <span className="font-medium" style={{ color: SAGE[800] }}>
+                  E-mail ou Matricule
+                </span>
+              }
               rules={[
                 {
                   required: true,
@@ -237,9 +240,10 @@ const Login = () => {
                 className="w-full"
               >
                 <Input
-                  prefix={<UserOutlined className="text-emerald-600" />}
+                  prefix={<UserOutlined style={{ color: SAGE[600] }} />}
                   size="large"
-                  className="rounded-lg bg-white/95"
+                  className="rounded-lg"
+                  style={{ backgroundColor: '#ffffff', borderColor: SAGE[200] }}
                 />
               </AutoComplete>
             </Form.Item>
@@ -247,7 +251,11 @@ const Login = () => {
             {/* Password */}
             <Form.Item
               name="password"
-              label={<span className="font-medium text-emerald-50">Mot de passe</span>}
+              label={
+                <span className="font-medium" style={{ color: SAGE[800] }}>
+                  Mot de passe
+                </span>
+              }
               rules={[
                 {
                   required: true,
@@ -256,10 +264,11 @@ const Login = () => {
               ]}
             >
               <Input.Password
-                prefix={<LockOutlined className="text-emerald-600" />}
+                prefix={<LockOutlined style={{ color: SAGE[600] }} />}
                 placeholder="Entrez votre mot de passe"
                 size="large"
-                className="rounded-lg bg-white/95"
+                className="rounded-lg"
+                style={{ backgroundColor: '#ffffff', borderColor: SAGE[200] }}
               />
             </Form.Item>
 
@@ -271,7 +280,8 @@ const Login = () => {
                 loading={loading}
                 block
                 size="middle"
-                className="bg-white !text-emerald-800 hover:!bg-emerald-50 border-none rounded-lg h-9 font-semibold shadow-sm"
+                className="border-none rounded-lg h-9 font-semibold shadow-sm"
+                style={{ backgroundColor: SAGE[600], color: '#ffffff' }}
               >
                 {loading ? 'Connexion...' : 'Se connecter'}
               </Button>
@@ -282,7 +292,12 @@ const Login = () => {
           <div className="relative z-10 mt-6 flex items-center justify-center">
             <Button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-white/10 border-white/20 text-emerald-50 hover:!text-white hover:!border-white/40 hover:!bg-white/15"
+              className="flex items-center gap-2 rounded-lg"
+              style={{
+                backgroundColor: '#ffffff',
+                borderColor: SAGE[200],
+                color: SAGE[800]
+              }}
             >
               <Link size={16} />
 
@@ -293,14 +308,16 @@ const Login = () => {
           {/* App version */}
           {window.api && (
             <div className="flex w-full justify-center">
-              <Badge className="relative z-10 text-center font-bold mt-6 text-xs text-white leading-4">
+              <Badge
+                className="relative z-10 text-center font-bold mt-6 text-xs leading-4"
+                style={{ color: SAGE[600] }}
+              >
                 v{appVersion}
               </Badge>
             </div>
           )}
         </div>
       </div>
-
       {/* Connection modal */}
       <Modal
         title="Type de connexion"

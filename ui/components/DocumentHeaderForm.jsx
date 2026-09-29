@@ -108,7 +108,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
           }))
         )
       } catch (error) {
-        console.log(error)
+        console.error(error)
       }
     }
     fetchCollaborateurs()

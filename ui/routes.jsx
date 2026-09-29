@@ -5,6 +5,7 @@ import ErrorPage from './pages/error-page'
 import MainLayout from './layouts/MainLayout'
 import CreateDocument from './pages/create-document'
 import MinimizedDocumentBar from './components/MinimizedDocumentBar'
+import Login from './pages/login'
 
 const Home = lazy(() => import('./pages/Home'))
 
@@ -43,5 +44,9 @@ export const router = createHashRouter([
   {
     path: '/minimized-document',
     element: <MinimizedDocumentBar />
+  },
+  {
+    path: 'login',
+    element: <Login />
   }
 ])

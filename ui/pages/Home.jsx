@@ -8,6 +8,7 @@ import DocumentsTable from '../components/DocumentsTable'
 import { api } from '../utils/api'
 import { handleShow } from '../utils/helpers'
 import SelectDocumentTypeModal from '../components/NewDocumentModal'
+import { message } from 'antd'
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -159,6 +160,7 @@ export default function Home() {
       setSelectedRowKey(null)
       setReloadKey((k) => k + 1)
     } catch (error) {
+      message.error(error?.response?.data?.message)
       console.error('Failed to delete document:', error)
     }
   }

@@ -62,8 +62,8 @@ export default function DocumentToolbar({ document, documentType }) {
   const [infoOpen, setInfoOpen] = useState(false)
   const [solvOpen, setSolvOpen] = useState(false)
 
-  const docType = DOCUMENT_TYPES.find((item) => item.type === documentType)
-  // console.log(docType)
+  // const docType = DOCUMENT_TYPES.find((item) => item.type === documentType)
+  // // console.log(docType)
   const handleMenuClick = ({ key }) => {
     if (key === 'info-libre') setInfoOpen(true)
     if (key === 'solvabilite') setSolvOpen(true)

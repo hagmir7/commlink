@@ -2,7 +2,7 @@ import React from 'react'
 import { Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { DOCUMENT_TYPES, STATUT_COLORS } from '../constants/documentTypes'
-import { Printer, Settings } from 'lucide-react'
+import { Lock, Printer, Settings } from 'lucide-react'
 import { getStatut } from '../utils/helpers'
 
 function TypeBadge({ type }) {
@@ -49,6 +49,14 @@ export default function DocumentsTable({
           {row.reliquat ? (
             <span title="Reliquat">
               <Settings size={15} />
+            </span>
+          ) : (
+            ''
+          )}
+
+          {row.valide ? (
+            <span title="Valide">
+              <Lock size={15} />
             </span>
           ) : (
             ''
