@@ -8,15 +8,16 @@ import DocumentsTable from '../components/DocumentsTable'
 import { api } from '../utils/api'
 import { handleShow } from '../utils/helpers'
 import SelectDocumentTypeModal from '../components/NewDocumentModal'
+import { useConfirm } from '../components/ui/ConfirmWindow'
 import { message } from 'antd'
 
 const POLL_INTERVAL_MS = 30_000
 
 export default function Home() {
   const navigate = useNavigate()
+  const [confirm, confirmHolder] = useConfirm()
 
   // --- filters ----------------------------------------------------------
-  // documentType is one item of DOCUMENT_TYPES: { type, value, label, code, domain, color }
   const [documentType, setDocumentType] = useState(DEFAULT_DOCUMENT_TYPE)
   const [clientCode, setClientCode] = useState(null)
   const [dateRange, setDateRange] = useState(['', ''])
@@ -25,7 +26,7 @@ export default function Home() {
   const [isSelectTypeOpen, setIsSelectTypeOpen] = useState(false)
 
   // --- sorting + pagination --------------------------------------------
-  const [sortOrder, setSortOrder] = useState('') // '', 'date', 'client', 'client_desc', 'statut', 'statut_desc'
+  const [sortOrder, setSortOrder] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(600)
   const [totalItems, setTotalItems] = useState(0)
@@ -51,7 +52,7 @@ export default function Home() {
       .catch((err) => console.error('Failed to load clients:', err))
   }, [])
 
-  // --- debounce the search box (server-side search) --------------------
+  // --- debounce the search box -----------------------------------------
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(search.trim())
@@ -60,25 +61,22 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [search])
 
-  // --- fetch documents whenever filters / sort / page change, + poll ----
+  // --- fetch documents whenever filters / sort / page change, + poll ---
   useEffect(() => {
     let isCancelled = false
     let inFlight = false
 
     async function loadDocuments({ silent = false } = {}) {
-      // prevent overlapping requests (poll can fire while a slow fetch is running)
       if (inFlight) return
       inFlight = true
 
-      // only show the spinner for user-initiated fetches, not for polls/refreshes
       if (!silent) setLoading(true)
 
       try {
         const params = { page, pageSize }
 
-        // doType / doDomaine come from the selected document type
         if (documentType) {
-          params.doType = documentType.value // can be 0 (Devis), so no truthy check on the value
+          params.doType = documentType.value
           params.doDomaine = documentType.domain
         }
         if (clientCode) params.clientCode = clientCode
@@ -92,7 +90,6 @@ export default function Home() {
         if (isCancelled) return
         setDocuments(res.data.items ?? [])
         setTotalItems(res.data.totalItems ?? 0)
-        // server clamps out-of-range pages, keep the UI in sync
         if (res.data.page && res.data.page !== page) setPage(res.data.page)
       } catch (err) {
         console.error('Failed to fetch documents:', err)
@@ -106,10 +103,8 @@ export default function Home() {
       }
     }
 
-    // initial fetch (with spinner)
     loadDocuments()
 
-    // poll every 30s (silent — no spinner flash)
     const intervalId = setInterval(() => loadDocuments({ silent: true }), POLL_INTERVAL_MS)
 
     return () => {
@@ -118,7 +113,7 @@ export default function Home() {
     }
   }, [documentType, clientCode, dateRange, debouncedSearch, sortOrder, page, pageSize, reloadKey])
 
-  // --- handlers (each filter change goes back to page 1) ---------------
+  // --- handlers --------------------------------------------------------
   const handleSelectType = (type) => {
     setDocumentType(type)
     setSelectedRowKey(null)
@@ -153,21 +148,91 @@ export default function Home() {
     handleShow(navigate, `/documents/${row.piece}?documentType=${documentType.type}`)
   }
 
-  const handleDelete = async () => {
-    if (!selectedRowKey) return
+  // --- delete ----------------------------------------------------------
+  const handleDelete = async (key) => {
+    if (!key) return
     try {
-      await api.delete(`/documents/${documentType.type}/${selectedRowKey}`)
+      await api.delete(`/documents/${documentType.type}/${key}`)
       setSelectedRowKey(null)
       setReloadKey((k) => k + 1)
+      message.success('Document supprimé')
     } catch (error) {
-      message.error(error?.response?.data?.message)
+      message.error(error?.response?.data?.message || 'Échec de la suppression du document')
       console.error('Failed to delete document:', error)
+      throw error
     }
   }
 
-  // --- refresh button --------------------------------------------------
+  // --- revert ----------------------------------------------------------
+  const handleRevert = async (key) => {
+    if (!key) return
+    try {
+      await api.post(`/documents/${documentType.type}/${key}/transform/revert`)
+      setSelectedRowKey(null)
+      setReloadKey((k) => k + 1)
+      message.success('Document rétabli')
+    } catch (error) {
+      message.error(error?.response?.data?.message || 'Échec du rétablissement du document')
+      console.error('Failed to revert document:', error)
+      throw error
+    }
+  }
+
+  // --- can-revert check ------------------------------------------------
+  const checkCanRevert = async (key) => {
+    if (!key) return false
+    try {
+      const res = await api.get(`/documents/${documentType.type}/${key}/transform/can-revert`)
+      return res.data?.canRevert ?? false
+    } catch (error) {
+      console.error('Failed to check if document can be reverted:', error)
+      return false
+    }
+  }
+
+  // --- STEP 1: delete confirmation ------------------------------------
+  const showDeleteConfirm = () => {
+    if (!selectedRowKey) return
+
+    const key = selectedRowKey
+
+    confirm({
+      title: 'Supprimer ce document ?',
+      content: `Voulez-vous supprimer l’élément ${key} ?`,
+      okText: 'Oui',
+      cancelText: 'Annuler',
+      danger: true,
+      onOk: async () => {
+        const canRevert = await checkCanRevert(key)
+
+        if (canRevert) {
+          // Defer so the first dialog fully unmounts before opening the second
+          setTimeout(() => showRevertConfirm(key), 150)
+        } else {
+          await handleDelete(key)
+        }
+      }
+    })
+  }
+
+  // --- STEP 2: revert confirmation ------------------------------------
+  const showRevertConfirm = (key) => {
+    if (!key) return
+
+    confirm({
+      title: 'Rétablir ce document ?',
+      content: `Ce document peut être rétabli au type précédent. Voulez-vous le rétablir au lieu de le supprimer ?`,
+      okText: 'Rétablir',
+      cancelText: 'Supprimer',
+      onOk: () => handleRevert(key),
+      onCancel: () => {
+        handleDelete(key)
+      }
+    })
+  }
+
+  // --- refresh ---------------------------------------------------------
   const handleRefresh = () => {
-    // bump reloadKey to trigger an immediate refetch
     setReloadKey((k) => k + 1)
   }
 
@@ -207,7 +272,6 @@ export default function Home() {
             onDateRangeChange={handleDateRangeChange}
             search={search}
             onSearchChange={setSearch}
-            // --- new props ---
             onRefresh={handleRefresh}
             activeFilterCount={activeFilterCount}
             onClearFilters={handleClearFilters}
@@ -242,7 +306,7 @@ export default function Home() {
           if (row) handleOpenRow(row)
         }}
         onNouveau={() => setIsSelectTypeOpen(true)}
-        onDelete={handleDelete}
+        onDelete={showDeleteConfirm}
         onClose={() => navigate(-1)}
       />
 
@@ -250,6 +314,8 @@ export default function Home() {
         open={isSelectTypeOpen}
         onCancel={() => setIsSelectTypeOpen(false)}
       />
+
+      {confirmHolder}
     </div>
   )
 }

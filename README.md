@@ -1,4 +1,4 @@
-# commlink
+# comlink
 
 An Electron application with React
 

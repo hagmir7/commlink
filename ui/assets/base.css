@@ -15,3 +15,8 @@ ul {
 body {
   font-family: "Inter";
 }
+
+.css-var-_r_0_.ant-form-css-var {
+    --ant-form-item-margin-bottom: 12px!important;
+
+}

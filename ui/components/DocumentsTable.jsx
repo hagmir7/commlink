@@ -116,26 +116,29 @@ export default function DocumentsTable({
       onRow={(row) => ({
         onClick: () => onSelectRow(row.piece),
         onDoubleClick: () => onOpenRow(row),
-        className: row.piece === selectedRowKey ? '!bg-blue-50 cursor-pointer' : 'cursor-pointer'
+        className: row.piece === selectedRowKey ? 'selected-row cursor-pointer' : 'cursor-pointer'
       })}
       className="
-        h-full whitespace-nowrap
-      [&_.ant-table-thead_.ant-table-cell]:bg-[#f0f0f0]
-        [&_.ant-table-thead_.ant-table-cell]:text-[12px] 
+    h-full whitespace-nowrap
+    [&_.ant-table-thead_.ant-table-cell]:bg-[#f0f0f0]
+    [&_.ant-table-thead_.ant-table-cell]:text-[12px]
 
-        [&_.ant-table-tbody_.ant-table-cell]:py-1
-        [&_.ant-table-content]:overflow-visible!
-        [&_.ant-table-thead>tr>th]:sticky
-        [&_.ant-table-thead>tr>th]:top-0
-        [&_.ant-table-thead>tr>th]:z-10
-        [&_.ant-table-thead>tr>th]:py-1!
-        [&_.ant-table-thead>tr>th]:!px-2
-        [&_.ant-table-tbody>tr>td]:!py-1
-        [&_.ant-table-tbody>tr>td]:!px-2
-        [&_.ant-table-tbody>tr>td]:overflow-hidden
-        [&_.ant-table-tbody>tr>td]:text-ellipsis
-        [&_.ant-table-tbody>tr>td]:text-sm
-              "
+    [&_.ant-table-tbody_.ant-table-cell]:py-1
+    [&_.ant-table-content]:overflow-visible!
+    [&_.ant-table-thead>tr>th]:sticky
+    [&_.ant-table-thead>tr>th]:top-0
+    [&_.ant-table-thead>tr>th]:z-10
+    [&_.ant-table-thead>tr>th]:py-1!
+    [&_.ant-table-thead>tr>th]:!px-2
+    [&_.ant-table-tbody>tr>td]:!py-1
+    [&_.ant-table-tbody>tr>td]:!px-2
+    [&_.ant-table-tbody>tr>td]:overflow-hidden
+    [&_.ant-table-tbody>tr>td]:text-ellipsis
+    [&_.ant-table-tbody>tr>td]:text-sm
+
+    [&_.ant-table-tbody>tr.selected-row>td]:!bg-blue-100
+    [&_.ant-table-tbody>tr.selected-row:hover>td]:!bg-blue-200
+  "
     />
   )
 }

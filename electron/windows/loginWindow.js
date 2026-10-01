@@ -67,9 +67,7 @@ function createLoginWindow() {
   if (isDev) {
     loginWindow.loadURL('http://localhost:5173/#login')
   } else {
-    loginWindow.setMenu(null)
-
-    const indexPath = path.join(app.getAppPath(), 'dist', 'index.html')
+    const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
     loginWindow.loadFile(indexPath, { hash: 'login' })
 
     initUpdater()

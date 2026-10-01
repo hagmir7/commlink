@@ -89,7 +89,7 @@ export default function DocumentsToolbar({
       <div className="flex-1" />
 
       {/* Refresh button */}
-      <Tooltip title="Rafraîchir">
+      <Tooltip>
         <button
           type="button"
           onClick={onRefresh}

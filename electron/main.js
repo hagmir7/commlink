@@ -14,8 +14,8 @@ const { saveSession, loadSession, clearSession } = require('./session')
 // ---------------------------------------------------------------------------
 
 // Must match the appId used to build/package the app (electron-builder config).
-const APP_ID = 'com.intercocina.commlink'
-const APP_NAME = 'Commlink'
+const APP_ID = 'com.intercocina.comlink'
+const APP_NAME = 'Comlink'
 
 // Small (16x16 / 32x32) png, ideally with an @2x variant next to it.
 const TRAY_ICON_PATH = path.join(__dirname, 'assets', 'trayIcon.png')
@@ -103,7 +103,8 @@ function createWindow() {
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
+    win.loadFile(indexPath)
   }
 
   win.once('ready-to-show', () => {
@@ -200,9 +201,16 @@ function handleLoginSuccess(data) {
 
 async function downloadPdf(url) {
   const filePath = path.join(app.getPath('temp'), `print-${Date.now()}.pdf`)
+  const company = currentSession?.user?.company
+  if (!company) throw new Error('No company in session')
 
   try {
-    const response = await net.fetch(url)
+    const response = await net.fetch(url, {
+      headers: {
+        Authorization: `Bearer ${currentSession.access_token || currentSession.token}`,
+        'X-Company': company
+      }
+    })
     if (!response.ok) throw new Error(`Download failed: ${response.status}`)
 
     await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(filePath))

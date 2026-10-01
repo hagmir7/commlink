@@ -189,7 +189,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       }
     } catch (err) {
       console.error(err)
-      message.error("Erreur lors de la recherche de l'article")
+      // message.error(err?.response?.data?.message || "Erreur lors de la recherche de l'article")
       setSearchModal({ open: true, query: reference })
     } finally {
       setReferenceLoading(false)
@@ -212,10 +212,9 @@ const DocumentLines = forwardRef(function DocumentLines(
 
   const addLines = async (data) => {
     try {
-      const response = await api.post(`documents/${documentType}/${piece}/lines`, {
+      await api.post(`documents/${documentType}/${piece}/lines`, {
         lignes: data
       })
-      console.log('created lines:', response.data)
       onUpdate()
     } catch (error) {
       console.error(error)
@@ -259,6 +258,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       remise: record.remise ?? '',
       description: record.description ? record.description : '',
       profondeur: record.profondeur ? record.profondeur : '',
+      nom: record.nom ? record.nom : '',
       episseur: record.episseur ? record.episseur : 0
     })
   }
@@ -290,8 +290,6 @@ const DocumentLines = forwardRef(function DocumentLines(
       nom: formValues.nom ? formValues.nom : '',
       profondeur: Number(formValues.profondeur) ? formValues.profondeur : 0
     }
-
-    console.log(payload)
 
     if (formValues.conditionnement) {
       const qteParCond = conditionnementMeta[formValues.conditionnement]?.qte
@@ -444,7 +442,6 @@ const DocumentLines = forwardRef(function DocumentLines(
     } catch (error) {
       onLoadingMovemen(false)
       console.error(error)
-      console.log(error)
       message.error(error?.response?.data?.message || 'Erreur lors du déplacement vers le haut')
     }
   }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])

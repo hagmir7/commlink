@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Form, Input, Button, Alert, Typography, Modal, AutoComplete, Badge } from 'antd'
-import { UserOutlined, LockOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Alert, Typography, Modal, AutoComplete, Badge, Select } from 'antd'
+import { UserOutlined, LockOutlined, BankOutlined } from '@ant-design/icons'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../utils/api'
 import Connection from '../components/Connection'
@@ -11,7 +11,15 @@ import TitleBar from '../components/TitleBar'
 const { Title, Text } = Typography
 
 // Default connection
-const DEFAULT_CONNECTION = 'http://192.168.1.38:30/api/'
+const DEFAULT_CONNECTION = 'https://localhost:7244'
+
+// Available companies (matches SageCompanies keys in appsettings.json)
+const COMPANIES = [
+  { value: 'stile', label: 'Stile Mobili' },
+  { value: 'intercocina', label: 'Intercocina' }
+]
+
+const DEFAULT_COMPANY = 'stile'
 
 // Sage palette (matches DesktopWindow)
 const SAGE = {
@@ -33,6 +41,17 @@ const Login = () => {
   const [appVersion, setAppVersion] = useState('')
   const [errorType, setErrorType] = useState(null)
 
+  // --- Company selection ------------------------------------------------
+  const [company, setCompany] = useState(() => {
+    const saved = localStorage.getItem('company')
+    return saved && saved !== 'undefined' && saved !== 'null' ? saved : DEFAULT_COMPANY
+  })
+
+  const handleCompanyChange = (value) => {
+    setCompany(value)
+    localStorage.setItem('company', value)
+  }
+
   const [usernames, setUsernames] = useState(() => {
     try {
       const saved = localStorage.getItem('usernames')
@@ -52,6 +71,13 @@ const Login = () => {
     localStorage.setItem('usernames', JSON.stringify(usernames))
   }, [usernames])
 
+  // Ensure the company is persisted on first load
+  useEffect(() => {
+    if (!localStorage.getItem('company')) {
+      localStorage.setItem('company', DEFAULT_COMPANY)
+    }
+  }, [])
+
   useEffect(() => {
     if (!localStorage.getItem('connection_url')) {
       localStorage.setItem('connection_url', DEFAULT_CONNECTION)
@@ -68,6 +94,9 @@ const Login = () => {
   const handleSubmit = async (values) => {
     try {
       setErrorType(null)
+
+      // Make sure the header value is set before login
+      localStorage.setItem('company', company)
 
       await login(values)
 
@@ -108,16 +137,13 @@ const Login = () => {
 
     try {
       const response = await api.get('auth/me')
-
       if (window.api) {
-        console.log(token)
         await window.api.user({ user: response.data, access_token: token })
       } else {
         navigate('/')
       }
     } catch (error) {
       console.error('Auth check failed:', error)
-
       localStorage.removeItem('authToken')
     }
   }
@@ -188,7 +214,7 @@ const Login = () => {
           {/* Error */}
           {(message || errorType === 'network') && (
             <Alert
-              message={getErrorMessage()}
+              title={getErrorMessage()}
               type={errorType === 'network' ? 'warning' : 'error'}
               showIcon
               className="relative z-10 mb-6 rounded-lg"
@@ -269,6 +295,19 @@ const Login = () => {
                 size="large"
                 className="rounded-lg"
                 style={{ backgroundColor: '#ffffff', borderColor: SAGE[200] }}
+              />
+            </Form.Item>
+
+            {/* Company */}
+            <Form.Item className="w-1/2 mb-1 pb-0">
+              <Select
+                value={company}
+                onChange={handleCompanyChange}
+                size="small"
+                className="w-full"
+                options={COMPANIES}
+                suffixIcon={<BankOutlined />}
+                style={{ backgroundColor: '#ffffff' }}
               />
             </Form.Item>
 

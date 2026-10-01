@@ -44,7 +44,8 @@ const createShowWindow = (data) => {
   if (isDev) {
     childWindow.loadURL(`http://localhost:5173/#${data.url}`)
   } else {
-    childWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'), {
+    const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
+    childWindow.loadFile(indexPath, {
       hash: data.url
     })
     childWindow.setMenu(null)

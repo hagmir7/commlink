@@ -1,7 +1,7 @@
 {
-  "name": "commlink",
+  "name": "Comlink",
   "version": "1.0.0",
-  "description": "An Electron application with React",
+  "description": "Comlink is an interface of sage",
   "main": "electron/main.js",
   "author": "intercocina.com",
   "homepage": "https://electron-vite.org",

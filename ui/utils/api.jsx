@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+const DEFAULT_COMPANY = 'intercocina'
+
 const getAuthToken = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
     return localStorage.getItem('authToken') || ''
@@ -7,8 +9,15 @@ const getAuthToken = () => {
   return ''
 }
 
-let baseURL = localStorage.getItem('connection_url') || 'http://localhost:5006'
-export const BASE_URL = 'https://localhost:7244'
+const getCompany = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return localStorage.getItem('company') || DEFAULT_COMPANY
+  }
+  return DEFAULT_COMPANY
+}
+
+let baseURL = localStorage.getItem('connection_url') || 'https://localhost:7244'
+export const BASE_URL = baseURL
 export const api = axios.create({
   baseURL,
   headers: {
@@ -22,5 +31,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  const company = getCompany()
+  config.headers['X-Company'] = company
+
   return config
 })

@@ -19,8 +19,6 @@ import PrintDocument from './PrintDocument'
 import DocumentInfoList from './DocumentInfoList'
 import SolvabiliteCient from './SolvabiliteCient'
 import { BASE_URL } from '../utils/api'
-import { DOCUMENT_TYPES } from '../constants/documentTypes'
-// import SolvabiliteWindow from './SolvabiliteWindow'
 
 const menuItems = [
   { key: 'info-libre', label: 'Info libre' },
@@ -62,8 +60,6 @@ export default function DocumentToolbar({ document, documentType }) {
   const [infoOpen, setInfoOpen] = useState(false)
   const [solvOpen, setSolvOpen] = useState(false)
 
-  // const docType = DOCUMENT_TYPES.find((item) => item.type === documentType)
-  // // console.log(docType)
   const handleMenuClick = ({ key }) => {
     if (key === 'info-libre') setInfoOpen(true)
     if (key === 'solvabilite') setSolvOpen(true)
@@ -73,7 +69,7 @@ export default function DocumentToolbar({ document, documentType }) {
     <>
       <div className="shrink-0 flex items-stretch bg-white border-b border-gray-300">
         <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }} trigger={['click']}>
-          <ToolbarButton label="Fonctions" icon={<SettingOutlined />} />
+          <ToolbarButton disabled={!document} label="Fonctions" icon={<SettingOutlined />} />
         </Dropdown>
 
         <ToolbarButton icon={<BarChartOutlined />} label="Barèmes" disabled />
@@ -84,6 +80,7 @@ export default function DocumentToolbar({ document, documentType }) {
           icon={<PrinterOutlined />}
           onClick={() => setPrintOpen(true)}
           label="Imprimer"
+          disabled={!document}
         />
 
         <ToolbarButton icon={<CalculatorOutlined />} label="Comptabiliser" disabled />
@@ -92,6 +89,7 @@ export default function DocumentToolbar({ document, documentType }) {
           icon={<SwapOutlined />}
           label="Transformer"
           onClick={() => setTransferOpen(true)}
+          disabled={!document}
         />
 
         <ToolbarButton icon={<LockOutlined />} label="Valider" disabled />
@@ -107,6 +105,7 @@ export default function DocumentToolbar({ document, documentType }) {
       >
         <TransferDocument
           currentDocumentType={documentType}
+
           document={document}
           setOpen={setTransferOpen}
         />
@@ -129,7 +128,7 @@ export default function DocumentToolbar({ document, documentType }) {
         open={printOpen}
         onCancel={() => setPrintOpen(false)}
         pdfUrl={`${BASE_URL}/documents/${documentType}/${document?.piece}/pdf`}
-        documentName="Facture 123"
+        documentName={document?.piece}
       />
     </>
   )

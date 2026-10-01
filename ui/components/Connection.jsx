@@ -51,7 +51,7 @@ export default function Connection() {
   const testUrl = async (url) => {
     try {
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: 'GET',
         mode: 'no-cors',
         signal: AbortSignal.timeout(5000)
       })
