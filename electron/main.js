@@ -14,11 +14,17 @@ const { saveSession, loadSession, clearSession } = require('./session')
 // ---------------------------------------------------------------------------
 
 // Must match the appId used to build/package the app (electron-builder config).
-const APP_ID = 'com.intercocina.comlink'
+const APP_ID = 'com.comlink.app'
 const APP_NAME = 'Comlink'
 
 // Small (16x16 / 32x32) png, ideally with an @2x variant next to it.
 const TRAY_ICON_PATH = path.join(__dirname, 'assets', 'trayIcon.png')
+
+// Your API origin, e.g. 'https://api.comlink.com' (no path, no trailing slash).
+// When set, it is used to (a) resolve relative PDF paths like "/api/print/1.pdf"
+// and (b) make sure the bearer token is only ever sent to your own API.
+// Leave empty ('') to skip both (absolute URLs only, any host).
+const API_ORIGIN = process.env.API_ORIGIN || ''
 
 // ---------------------------------------------------------------------------
 // State
@@ -84,6 +90,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -199,19 +206,56 @@ function handleLoginSuccess(data) {
 // Printing helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Validates and normalizes the URL the renderer asks us to download.
+ *  - Must be a string.
+ *  - Relative paths ("/api/x.pdf") are resolved against API_ORIGIN (if set).
+ *  - https is always allowed. http is allowed only in dev (local API).
+ *  - If API_ORIGIN is set, the origin must match so the token never leaks.
+ * Returns the normalized URL string.
+ */
+function validatePrintUrl(input) {
+  if (typeof input !== 'string' || !input.trim()) {
+    throw new Error(`Invalid PDF URL: ${JSON.stringify(input)}`)
+  }
+
+  let parsed
+  try {
+    parsed = new URL(input.trim(), API_ORIGIN || undefined)
+  } catch {
+    throw new Error(`Invalid PDF URL: ${input}`)
+  }
+
+  const isHttps = parsed.protocol === 'https:'
+  const isDevHttp = is.dev && parsed.protocol === 'http:'
+  if (!isHttps && !isDevHttp) {
+    throw new Error(`Only https URLs are allowed (got "${parsed.protocol}")`)
+  }
+
+  if (API_ORIGIN && parsed.origin !== new URL(API_ORIGIN).origin) {
+    throw new Error(`URL origin not allowed: ${parsed.origin}`)
+  }
+
+  return parsed.toString()
+}
+
 async function downloadPdf(url) {
   const filePath = path.join(app.getPath('temp'), `print-${Date.now()}.pdf`)
   const company = currentSession?.user?.company
   if (!company) throw new Error('No company in session')
 
+  const token = currentSession?.access_token || currentSession?.token
+  if (!token) throw new Error('No token in session')
+
   try {
     const response = await net.fetch(url, {
       headers: {
-        Authorization: `Bearer ${currentSession.access_token || currentSession.token}`,
+        Authorization: `Bearer ${token}`,
         'X-Company': company
       }
     })
     if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+    if (!response.body) throw new Error('Empty response body')
 
     await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(filePath))
     return filePath
@@ -303,11 +347,10 @@ ipcMain.handle('openShow', async (_event, payload) => {
 
 ipcMain.handle('get-printers', (e) => e.sender.getPrintersAsync())
 
-ipcMain.handle('print-pdf-from-url', async (e, url, printerName, options) => {
+ipcMain.handle('print-pdf-from-url', async (e, rawUrl, printerName, options) => {
   let file
   try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== 'https:') throw new Error('Only https URLs are allowed')
+    const url = validatePrintUrl(rawUrl)
 
     // Only allow printers the OS actually reports.
     if (printerName) {

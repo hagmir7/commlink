@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.comlink.app
 productName: comlink
 directories:
   buildResources: build
@@ -12,6 +12,7 @@ asarUnpack:
   - resources/**
 win:
   executableName: comlink
+  icon: build/icon.png
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
