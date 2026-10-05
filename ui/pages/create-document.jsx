@@ -10,6 +10,10 @@ import { api } from '../utils/api'
 import DocumentBarTitle from '../components/DocumentBarTitle'
 import DocumentToolbar from '../components/DocumentToolbar'
 
+// Must match the status value used for "Envoyé" in your statuses list.
+// Ideally move this to constants/documentTypes.
+const ENVOYER_STATUT_VALUE = 1
+
 export default function CreateDocument() {
   const { piece } = useParams()
   const navigate = useNavigate()
@@ -24,6 +28,7 @@ export default function CreateDocument() {
   const [loadingMovement, setLoadingMovement] = useState(false)
 
   const linesRef = useRef(null)
+  const headerRef = useRef(null)
 
   /**
    * Fetch document
@@ -37,7 +42,6 @@ export default function CreateDocument() {
 
     try {
       const response = await api.get(`documents/${currentPiece}`)
-
       const data = response.data
 
       setDocument(data)
@@ -78,11 +82,9 @@ export default function CreateDocument() {
 
     try {
       const response = await api.patch(`documents/${documentType}/${piece}`, data)
-
-      message.success('Modification réussie')
-
       return response.data
     } catch (error) {
+      console.error('Error updating document:', error)
       message.error(error.response?.data?.message || 'Erreur lors de la modification du document')
 
       throw error
@@ -129,6 +131,22 @@ export default function CreateDocument() {
     }
 
     return create(data)
+  }
+
+  /**
+   * Change the status to "Envoyé" and save the WHOLE form.
+   * The form builds the full payload, so we ask it to save instead of
+   * calling update({ statut }) with a partial body (which gives a 400).
+   */
+  const handleUpdateStatusToEnvoyer = async () => {
+    if (!piece) return
+
+    try {
+      const saved = await headerRef.current?.submitWithStatut(ENVOYER_STATUT_VALUE)
+      if (saved) fetchDocument(piece) // reload from the server
+    } catch {
+      // update() already showed the error toast
+    }
   }
 
   /**
@@ -183,10 +201,15 @@ export default function CreateDocument() {
       {/* Title bar */}
       <DocumentBarTitle piece={piece} document={document} documentType={documentType} />
 
-      <DocumentToolbar documentType={documentType} document={document} />
+      <DocumentToolbar
+        documentType={documentType}
+        document={document}
+        updateDocumentStatus={handleUpdateStatusToEnvoyer}
+      />
 
       {/* Document header */}
       <DocumentHeaderForm
+        ref={headerRef}
         piece={piece}
         document={document}
         documentType={documentType}
@@ -205,7 +228,6 @@ export default function CreateDocument() {
         onUpdate={handleLinesUpdate}
       />
 
-      {/* Bottom action bar */}
       {/* Bottom action bar */}
       <div className="shrink-0 flex items-center gap-1 px-2 py-1 bg-[#f0f0f0] border-t border-b border-gray-300">
         <Select
@@ -252,8 +274,6 @@ export default function CreateDocument() {
 
       {/* Footer buttons */}
       <div className="shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-[#f0f0f0]">
-        {/* <Button size="small">Nouveau</Button> */}
-
         <Button
           size="small"
           type="primary"

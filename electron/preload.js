@@ -28,5 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   // Printing
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   printPdf: (url, printerName, options) =>
-    ipcRenderer.invoke('print-pdf-from-url', url, printerName, options)
+    ipcRenderer.invoke('print-pdf-from-url', url, printerName, options),
+
+  whatsappSendPdf: (url, opts) => ipcRenderer.invoke('whatsapp:send-pdf-from-url', url, opts),
+  whatsappHasDesktop: () => ipcRenderer.invoke('whatsapp:has-desktop')
 })

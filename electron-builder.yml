@@ -1,5 +1,5 @@
 appId: com.comlink.app
-productName: comlink
+productName: Comlink
 directories:
   buildResources: build
 files:
@@ -11,7 +11,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: comlink
+  executableName: Comlink
   icon: build/icon.png
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
@@ -39,5 +39,6 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: hagmir7
+  repo: commlink

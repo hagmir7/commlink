@@ -1,72 +1,97 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Select, Input, Button, message } from 'antd'
 import { LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 
-export default function Connection() {
-  const connections = [
-    {
-      label: 'Local',
-      value: 'http://192.168.1.38:30/api/'
-    },
-    {
-      label: 'Online',
-      value: 'https://smq.intercocina.online/api/'
-    },
-    {
-      label: 'Développement',
-      value: 'http://localhost:8000/api/'
-    },
-    {
-      label: 'Personnalisée',
-      value: 'custom'
-    }
-  ]
+const STORAGE_KEY = 'connection_url'
 
-  // Local is the default connection
-  const DEFAULT_CONNECTION = connections[0].value
+const connections = [
+  { label: 'Local', value: 'http://192.168.1.19' },
+  { label: 'Online', value: 'https://comlink.intercocina.online' },
+  { label: 'Développement', value: 'https://localhost:7244' },
+  { label: 'Personnalisée', value: 'custom' }
+]
 
-  const [connection, setConnection] = useState(DEFAULT_CONNECTION)
-  const [customUrl, setCustomUrl] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [selectedValue, setSelectedValue] = useState(DEFAULT_CONNECTION)
+// Local is the default connection
+const DEFAULT_CONNECTION = connections[0].value
 
-  useEffect(() => {
-    const savedConnection = localStorage.getItem('connection_url')
+const isPredefined = (url) => connections.some((c) => c.value === url && c.value !== 'custom')
 
-    if (savedConnection) {
-      const isPredefined = connections.some((c) => c.value === savedConnection)
+// Safe localStorage access (can throw in private mode / blocked storage)
+const readStorage = () => {
+  try {
+    return localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
 
-      setConnection(savedConnection)
-      setSelectedValue(isPredefined ? savedConnection : 'custom')
+const writeStorage = (value) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, value)
+  } catch {
+    /* ignore */
+  }
+}
 
-      if (!isPredefined) {
-        setCustomUrl(savedConnection)
-      }
-    } else {
-      // Save Local as the default connection
-      localStorage.setItem('connection_url', DEFAULT_CONNECTION)
-    }
-  }, [])
+// Resolve the initial state once, synchronously, so Local is used right away
+const getInitialState = () => {
+  const saved = readStorage()
 
-  const testUrl = async (url) => {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'no-cors',
-        signal: AbortSignal.timeout(5000)
-      })
-
-      return response.type === 'opaque' || response.ok
-    } catch {
-      return false
-    }
+  if (!saved) {
+    writeStorage(DEFAULT_CONNECTION)
+    return { connection: DEFAULT_CONNECTION, selected: DEFAULT_CONNECTION, custom: '' }
   }
 
-  const saveUrl = (url) => {
-    setConnection(url)
-    localStorage.setItem('connection_url', url)
+  if (isPredefined(saved)) {
+    return { connection: saved, selected: saved, custom: '' }
+  }
 
-    message.success({
+  return { connection: saved, selected: 'custom', custom: saved }
+}
+
+const normalizeUrl = (url) => url.trim().replace(/\/+$/, '')
+
+const testUrl = async (url) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'no-cors',
+      signal: controller.signal
+    })
+
+    return response.type === 'opaque' || response.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export default function Connection() {
+  const [messageApi, contextHolder] = message.useMessage()
+  const [initial] = useState(getInitialState)
+
+  const [connection, setConnection] = useState(initial.connection)
+  const [customUrl, setCustomUrl] = useState(initial.custom)
+  const [selectedValue, setSelectedValue] = useState(initial.selected)
+  const [testing, setTesting] = useState(false)
+
+  // Value the Select should show again if a test fails
+  const currentSelectValue = isPredefined(connection) ? connection : 'custom'
+
+  const saveUrl = (url) => {
+    if (url === connection) {
+      messageApi.success({ content: 'Connexion déjà active ✅', icon: <CheckCircleOutlined /> })
+      return
+    }
+
+    setConnection(url)
+    writeStorage(url)
+
+    messageApi.success({
       content: 'Connexion enregistrée ✅',
       icon: <CheckCircleOutlined />
     })
@@ -76,54 +101,10 @@ export default function Connection() {
     }, 500)
   }
 
-  const handleSelect = async (value) => {
-    setSelectedValue(value)
-
-    if (value === 'custom') {
-      setConnection('')
-      setCustomUrl('')
-      return
-    }
-
+  const testAndSave = async (url) => {
     setTesting(true)
 
-    message.loading({
-      content: 'Test de connexion en cours...',
-      key: 'test',
-      duration: 0
-    })
-
-    const ok = await testUrl(value)
-
-    setTesting(false)
-
-    if (!ok) {
-      message.error({
-        content: `Impossible de joindre ${value}`,
-        key: 'test',
-        duration: 4,
-        icon: <CloseCircleOutlined />
-      })
-
-      // Keep the previous connection
-      return
-    }
-
-    message.destroy('test')
-    saveUrl(value)
-  }
-
-  const saveCustomUrl = async () => {
-    const url = customUrl.trim()
-
-    if (!/^https?:\/\//i.test(url)) {
-      message.error("L'URL doit commencer par http:// ou https://")
-      return
-    }
-
-    setTesting(true)
-
-    message.loading({
+    messageApi.loading({
       content: 'Test de connexion en cours...',
       key: 'test',
       duration: 0
@@ -134,18 +115,46 @@ export default function Connection() {
     setTesting(false)
 
     if (!ok) {
-      message.error({
+      messageApi.error({
         content: `Impossible de joindre ${url}`,
         key: 'test',
         duration: 4,
         icon: <CloseCircleOutlined />
       })
+      return false
+    }
 
+    messageApi.destroy('test')
+    saveUrl(url)
+    return true
+  }
+
+  const handleSelect = async (value) => {
+    setSelectedValue(value)
+
+    if (value === 'custom') {
+      // Only show the input; the saved connection stays untouched until a valid URL is saved
       return
     }
 
-    message.destroy('test')
-    saveUrl(url)
+    const ok = await testAndSave(value)
+
+    if (!ok) {
+      // Keep the previous connection and restore the Select to match it
+      setSelectedValue(currentSelectValue)
+    }
+  }
+
+  const saveCustomUrl = async () => {
+    const url = normalizeUrl(customUrl)
+
+    if (!/^https?:\/\/.+/i.test(url)) {
+      messageApi.error("L'URL doit commencer par http:// ou https://")
+      return
+    }
+
+    setCustomUrl(url)
+    await testAndSave(url)
   }
 
   const showCustomInput = selectedValue === 'custom'
@@ -159,6 +168,8 @@ export default function Connection() {
         width: 300
       }}
     >
+      {contextHolder}
+
       <Select
         placeholder="Type de connexion"
         options={connections}

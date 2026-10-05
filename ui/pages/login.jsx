@@ -247,7 +247,7 @@ const Login = () => {
               name="login"
               label={
                 <span className="font-medium" style={{ color: SAGE[800] }}>
-                  E-mail ou Matricule
+                  Identifiant
                 </span>
               }
               rules={[

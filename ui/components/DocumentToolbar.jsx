@@ -10,7 +10,10 @@ import {
   SwapOutlined,
   LockOutlined,
   CaretDownOutlined,
-  TruckOutlined
+  TruckOutlined,
+  WhatsAppOutlined,
+  MailOutlined,
+  FilePdfOutlined
 } from '@ant-design/icons'
 
 import DesktopWindow from './ui/DesktopWindow'
@@ -18,11 +21,35 @@ import TransferDocument from './TransferDocument'
 import PrintDocument from './PrintDocument'
 import DocumentInfoList from './DocumentInfoList'
 import SolvabiliteCient from './SolvabiliteCient'
-import { BASE_URL } from '../utils/api'
+import WhatsappSendDocument from './WhatsappSendDocument'
+import { api, BASE_URL } from '../utils/api'
+import { DOCUMENT_TYPES } from '../constants/documentTypes'
 
 const menuItems = [
   { key: 'info-libre', label: 'Info libre' },
   { key: 'solvabilite', label: 'Solvabilité' }
+]
+
+const printMenuItems = [
+  {
+    key: 'whatsapp',
+    icon: <WhatsAppOutlined style={{ color: '#25D366' }} />,
+    label: <span className="text-xs">Envoyer par WhatsApp</span>,
+    size: 'small'
+  },
+  {
+    key: 'mail',
+    icon: <MailOutlined style={{ color: 'blue' }} />,
+    label: <span className="text-xs">Envoyer par E-mail</span>,
+    size: 'small'
+  },
+
+  {
+    key: 'pdf',
+    icon: <FilePdfOutlined style={{ color: 'red' }} />,
+    label: <span className="text-xs">Voir PDF</span>,
+    size: 'small'
+  }
 ]
 
 const ToolbarButton = forwardRef(function ToolbarButton(
@@ -54,15 +81,88 @@ const ToolbarButton = forwardRef(function ToolbarButton(
   )
 })
 
-export default function DocumentToolbar({ document, documentType }) {
+/**
+ * Split button: clicking the icon/label runs `onClick`;
+ * clicking the little arrow opens a dropdown menu.
+ */
+function SplitToolbarButton({ icon, label, disabled = false, onClick, menu }) {
+  const base = disabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 cursor-pointer'
+
+  return (
+    <div
+      className={[
+        'group flex flex-col items-center justify-center gap-0.5 px-2.5 py-1',
+        'text-[11px] leading-none border-r border-gray-200 last:border-r-0',
+        disabled ? 'text-gray-400' : 'text-gray-700 hover:bg-blue-50'
+      ].join(' ')}
+      style={{ minWidth: 78 }}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className={`text-[12px] ${base}`}
+        aria-label={label}
+      >
+        {icon}
+      </button>
+
+      <span className="flex items-center gap-0.5">
+        <button type="button" disabled={disabled} onClick={onClick} className={`text-xs ${base}`}>
+          {label}
+        </button>
+
+        <Dropdown menu={menu} trigger={['click']} disabled={disabled}>
+          <button
+            type="button"
+            size="small"
+            disabled={disabled}
+            aria-label={`${label} - plus d'options`}
+            className={[
+              'flex h-3.5 w-4 items-center justify-center rounded-sm',
+              disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-blue-200'
+            ].join(' ')}
+          >
+            <DownOutlined style={{ fontSize: 8 }} />
+          </button>
+        </Dropdown>
+      </span>
+    </div>
+  )
+}
+
+export default function DocumentToolbar({ document, documentType, updateDocumentStatus }) {
   const [transferOpen, setTransferOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [solvOpen, setSolvOpen] = useState(false)
+  const pdfUrl = `${BASE_URL}/documents/${documentType}/${document?.piece}/pdf`
+
+  const documentTypeLabel = DOCUMENT_TYPES.find((t) => t.type === documentType)?.label || 'Document'
 
   const handleMenuClick = ({ key }) => {
     if (key === 'info-libre') setInfoOpen(true)
     if (key === 'solvabilite') setSolvOpen(true)
+  }
+
+  const handlePrintMenuClick = async ({ key }) => {
+    if (key === 'whatsapp') setWhatsappOpen(true)
+    if (key === 'pdf') {
+      if (!document?.piece) return
+
+      try {
+        const res = await api.get(`/documents/${documentType}/${document.piece}/pdf`, {
+          responseType: 'blob'
+        })
+        const blob = new Blob([res.data], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      } catch (err) {
+        console.error('Erreur ouverture PDF', err)
+      }
+    }
   }
 
   return (
@@ -76,11 +176,13 @@ export default function DocumentToolbar({ document, documentType }) {
         <ToolbarButton icon={<InfoCircleOutlined />} label="Informations" disabled />
         <ToolbarButton icon={<CaretDownOutlined />} label="Pied" disabled />
 
-        <ToolbarButton
+        {/* Click = print · arrow = more options (WhatsApp) */}
+        <SplitToolbarButton
           icon={<PrinterOutlined />}
-          onClick={() => setPrintOpen(true)}
           label="Imprimer"
           disabled={!document}
+          onClick={() => setPrintOpen(true)}
+          menu={{ items: printMenuItems, onClick: handlePrintMenuClick }}
         />
 
         <ToolbarButton icon={<CalculatorOutlined />} label="Comptabiliser" disabled />
@@ -105,7 +207,6 @@ export default function DocumentToolbar({ document, documentType }) {
       >
         <TransferDocument
           currentDocumentType={documentType}
-
           document={document}
           setOpen={setTransferOpen}
         />
@@ -127,8 +228,17 @@ export default function DocumentToolbar({ document, documentType }) {
       <PrintDocument
         open={printOpen}
         onCancel={() => setPrintOpen(false)}
-        pdfUrl={`${BASE_URL}/documents/${documentType}/${document?.piece}/pdf`}
+        pdfUrl={pdfUrl}
         documentName={document?.piece}
+      />
+
+      <WhatsappSendDocument
+        open={whatsappOpen}
+        onClose={() => setWhatsappOpen(false)}
+        onSend={updateDocumentStatus}
+        pdfUrl={pdfUrl}
+        fileName={document?.piece ? `${documentTypeLabel}-${document.piece}` : undefined}
+        defaultPhone={document?.clientTelephone ?? ''}
       />
     </>
   )

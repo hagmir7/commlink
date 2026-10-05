@@ -1,5 +1,5 @@
 import { message } from 'antd'
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { api } from '../utils/api'
 import { getAvailableStatuts, getStatut } from '../utils/helpers'
 import {
@@ -14,8 +14,12 @@ import DateColumn from './DateColumn'
 import DocumentColumn from './DocumentColumn'
 
 const DATE_LIVRAISON_RESTRICTED_TYPES = [0, 1, 2]
+const DEFAULT_SOUCHE = 'Souche A'
 
-export default function DocumentHeaderForm({ onValidate, piece, document, documentType }) {
+const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
+  { onValidate, piece, document: doc, documentType, onDataChange },
+  ref
+) {
   const [clientOptions, setClientOptions] = useState([])
   const [expeditionOptions, setExpeditionOptions] = useState([])
 
@@ -23,7 +27,6 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     client: true,
     expedition: true
   })
-
   const [optionsError, setOptionsError] = useState({})
 
   const [client, setClient] = useState(null)
@@ -36,8 +39,8 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
 
   const [representant, setRepresentant] = useState(null)
   const [nExpedition, setNExpedition] = useState(undefined)
-  const [nDocumentSouche, setNDocumentSouche] = useState('Souche A')
-  const [nDocumentNumero, setNDocumentNumero] = useState('23DE000438')
+  const [nDocumentSouche, setNDocumentSouche] = useState(DEFAULT_SOUCHE)
+  const [nDocumentNumero, setNDocumentNumero] = useState('')
   const [reference, setReference] = useState('')
   const [type, setType] = useState(null)
 
@@ -47,18 +50,17 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
-  // ---------------------------------------------------------
-  // The "documentType" prop is the type the page was opened
-  // with (e.g. for creating a new document). Once a document
-  // is actually loaded, its own `doType` field is the source
-  // of truth for which status list applies.
-  // ---------------------------------------------------------
+  // Ref guard: state updates are async, so two fast submits could both pass
+  // a `submitting` state check. The ref flips synchronously.
+  const submittingRef = useRef(false)
 
+  // The "documentType" prop is the type the page was opened with. Once a
+  // document is loaded, its own `doType` is the source of truth for statuses.
   const statutDocType =
-    document?.doType ?? DOCUMENT_TYPES.find((item) => item.type === documentType)?.value
+    doc?.doType ?? DOCUMENT_TYPES.find((item) => item.type === documentType)?.value
 
   // Auto-submit only when editing an existing document (not on create).
-  const canAutoSubmit = Boolean(piece || document?.piece)
+  const canAutoSubmit = Boolean(piece || doc?.piece)
 
   // ---------------------------------------------------------
   // Load async options
@@ -75,22 +77,20 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
       ['expedition', '/expeditions', (e) => ({ value: e, label: e }), setExpeditionOptions]
     ]
 
-    Promise.all(
-      loaders.map(async ([key, path, mapFn, setter]) => {
-        try {
-          const { data } = await api.get(path)
-          setter(data.map(mapFn))
-        } catch (error) {
-          console.error(`API Error (${path}):`, error)
-          setOptionsError((prev) => ({
-            ...prev,
-            [key]: 'Impossible de charger les options'
-          }))
-        } finally {
-          setOptionsLoading((prev) => ({ ...prev, [key]: false }))
-        }
-      })
-    )
+    loaders.forEach(async ([key, path, mapFn, setter]) => {
+      try {
+        const { data } = await api.get(path)
+        setter(data.map(mapFn))
+      } catch (error) {
+        console.error(`API Error (${path}):`, error)
+        setOptionsError((prev) => ({
+          ...prev,
+          [key]: 'Impossible de charger les options'
+        }))
+      } finally {
+        setOptionsLoading((prev) => ({ ...prev, [key]: false }))
+      }
+    })
   }, [])
 
   // ---------------------------------------------------------
@@ -119,28 +119,43 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   // ---------------------------------------------------------
 
   useEffect(() => {
-    if (!piece || !document) return
+    if (!piece || !doc) return
 
-    setClient(document.clientCode ?? null)
-    setAffaire(document.affaire ?? null)
-    setExpedition(document.expedition || 'EX-WORK')
-    setDate(toDayjsOrNull(document.date) ?? TODAY)
-    setDateLivraison(toDayjsOrNull(document.dateLivraison))
+    setClient(doc.clientCode ?? null)
+    setAffaire(doc.affaire ?? null)
+    setExpedition(doc.expedition || 'EX-WORK')
+    setDate(toDayjsOrNull(doc.date) ?? TODAY)
+    setDateLivraison(toDayjsOrNull(doc.dateLivraison))
+    setStatutValue(doc.statut ?? DEFAULT_STATUT.value)
+    setRepresentant(doc.collaborateur ?? null)
+    setNExpedition(doc.nExpedition)
+    setNDocumentSouche(doc.souche ?? DEFAULT_SOUCHE)
+    setNDocumentNumero(piece)
+    setReference(doc.ref ?? '')
+    setType(doc.type ?? null)
+    setPort(doc.port ?? '')
+  }, [piece, doc])
 
-    if (document.statut !== null && document.statut !== undefined) {
-      setStatutValue(document.statut)
-    } else {
-      setStatutValue(DEFAULT_STATUT.value)
+  // ---------------------------------------------------------
+  // Next piece number (create mode only)
+  // ---------------------------------------------------------
+
+  useEffect(() => {
+    // When editing, keep the existing number instead of overwriting it.
+    if (piece) return
+
+    const getNextPiece = async () => {
+      try {
+        const response = await api.get(
+          `documents/${documentType}/next-piece?souche=${nDocumentSouche ?? ''}`
+        )
+        setNDocumentNumero(response?.data?.piece ?? '')
+      } catch (error) {
+        console.error(error)
+      }
     }
-
-    setRepresentant(document.collaborateur ?? null)
-    setNExpedition(document.nExpedition)
-    setNDocumentSouche(document.souche ?? 'Souche A')
-    setNDocumentNumero(piece ?? '23DE000438')
-    setReference(document.ref ?? '')
-    setType(document.type ?? null)
-    setPort(document.port ?? '')
-  }, [piece, document])
+    getNextPiece()
+  }, [nDocumentSouche, piece, documentType])
 
   // ---------------------------------------------------------
   // Errors
@@ -157,17 +172,22 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   // Snapshot / validate / submit
   // ---------------------------------------------------------
 
-  // Build the values the form would submit, applying any overrides on top
-  // (so auto-submit uses the freshly-changed value, not the stale state).
+  // Values the form would submit, with overrides applied on top so that
+  // auto-submit uses the freshly-changed value instead of stale state.
   const buildSnapshot = (overrides = {}) => ({
     reference,
     client,
     date,
     dateLivraison,
+    dateLivraisonStatut,
     statutValue,
     expedition,
     type,
     souche: nDocumentSouche,
+    affaire,
+    representant,
+    nExpedition,
+    port,
     ...overrides
   })
 
@@ -199,14 +219,16 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     return Object.keys(newErrors).length === 0
   }
 
+  // Resolves to true when the save went through, false when it was skipped
+  // (already submitting, validation failed, no handler). Rejects if
+  // onValidate throws, so callers can react to failures.
   const handleValidate = async (overrides = {}) => {
-    if (submitting) return
+    if (submittingRef.current) return false
 
     const snap = buildSnapshot(overrides)
 
-    if (!validate(snap)) return
+    if (!validate(snap)) return false
 
-    // Resolve the status from the snapshot value (not from state)
     const statutObj = getStatut(statutDocType, snap.statutValue) ?? DEFAULT_STATUT
 
     const formData = {
@@ -214,51 +236,70 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
       clientCode: snap.client,
       reference: snap.reference,
       type: snap.type,
-      affaire,
+      affaire: snap.affaire,
       expedition: snap.expedition,
       date: snap.date?.format('DDMMYY'),
-      dateLivraisonStatut,
+      dateLivraisonStatut: snap.dateLivraisonStatut,
       dateLivraison: snap.dateLivraison?.format('YYYY-MM-DD') ?? null,
-      representant,
-      nExpedition,
+      representant: snap.representant,
+      nExpedition: snap.nExpedition,
       statut: statutObj.name,
       souche: snap.souche,
       nDocument: {
         numero: nDocumentNumero
       },
-      port
+      port: snap.port
     }
 
     if (typeof onValidate !== 'function') {
       console.warn('DocumentHeaderForm: no onValidate handler provided', formData)
-      return
+      return false
     }
 
     try {
+      submittingRef.current = true
       setSubmitting(true)
       await onValidate(formData)
+      return true
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
 
-  // Only fires if the document is an existing one (has a `piece`)
+  // Auto-submit: errors are already reported by the parent's handler,
+  // so swallow the rejection here to avoid unhandled promise warnings.
   const autoSubmit = (overrides) => {
     if (!canAutoSubmit) return
-    handleValidate(overrides)
+    handleValidate(overrides).catch(() => {})
   }
+
+  // ---------------------------------------------------------
+  // Imperative API (used by the parent, e.g. after a WhatsApp send)
+  // ---------------------------------------------------------
+
+  useImperativeHandle(ref, () => ({
+    // Saves the whole form with a new status. Resolves to true on success.
+    submitWithStatut: (newStatutValue) => {
+      setStatutValue(newStatutValue)
+      clearError('statut')
+      return handleValidate({ statutValue: newStatutValue })
+    }
+  }))
 
   // ---------------------------------------------------------
   // Field change handlers
   // ---------------------------------------------------------
 
+  const getValue = (value) => (value?.target ? value.target.value : value)
+
   const onChange = (setter, field) => (value) => {
-    setter(value?.target ? value.target.value : value)
+    setter(getValue(value))
     clearError(field)
   }
 
   const handleClientChange = (value) => {
-    const v = value?.target ? value.target.value : value
+    const v = getValue(value)
     setClient(v)
     clearError('client')
     autoSubmit({ client: v })
@@ -271,14 +312,14 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
   }
 
   const handleExpeditionChange = (value) => {
-    const v = value?.target ? value.target.value : value
+    const v = getValue(value)
     setExpedition(v)
     clearError('expedition')
     autoSubmit({ expedition: v })
   }
 
   const handleTypeChange = (value) => {
-    const v = value?.target ? value.target.value : value
+    const v = getValue(value)
     setType(v)
     clearError('type')
     autoSubmit({ type: v })
@@ -305,9 +346,9 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     } catch (error) {
       setRepresentant(old)
       message.warning(
-        error.response.data.message || `Le collaborateur "${value}" n’est pas un vendeur.`
+        error.response?.data?.message || `Le collaborateur "${value}" n’est pas un vendeur.`
       )
-      console.error(error.response.data)
+      console.error(error.response?.data ?? error)
     }
   }
 
@@ -330,7 +371,7 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
     if (event.target?.closest?.('.ant-select')) return
 
     event.preventDefault()
-    handleValidate()
+    handleValidate().catch(() => {})
   }
 
   // ---------------------------------------------------------
@@ -339,23 +380,9 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
 
   const statuses = getAvailableStatuts(statutDocType)
 
-  // ---------------------------------------------------------
-  // Next piece number
-  // ---------------------------------------------------------
-
   useEffect(() => {
-    const getNextPiece = async () => {
-      try {
-        const response = await api.get(
-          `documents/${documentType}/next-piece?souche=${nDocumentSouche ?? ''}`
-        )
-        setNDocumentNumero(response?.data?.piece ?? '')
-      } catch (error) {
-        console.error(error)
-      }
-    }
-    getNextPiece()
-  }, [nDocumentSouche])
+    onDataChange?.({ client, reference, statutValue, representant })
+  }, [client, reference, statutValue, representant])
 
   return (
     <div
@@ -441,8 +468,10 @@ export default function DocumentHeaderForm({ onValidate, piece, document, docume
           onChange: (e) => setPort(e.target.value)
         }}
         submitting={submitting}
-        onValidate={() => handleValidate()}
+        onValidate={() => handleValidate().catch(() => {})}
       />
     </div>
   )
-}
+})
+
+export default DocumentHeaderForm
