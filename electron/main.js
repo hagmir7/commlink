@@ -10,6 +10,7 @@ const { APP_ID, APP_NAME, TRAY_ICON_PATH } = require('./config')
 const { validatePdfUrl, downloadPdf, removePdf } = require('./services/pdf')
 const { assertKnownPrinter, printPdf } = require('./services/print')
 const whatsapp = require('./services/whatsapp')
+const { createMenu } = require('./services/menu.js')
 
 // ---------------------------------------------------------------------------
 // State
@@ -65,7 +66,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    autoHideMenuBar: true,
+    // autoHideMenuBar: true,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -293,6 +294,7 @@ ipcMain.handle('whatsapp:has-desktop', () => whatsapp.hasDesktopApp())
 if (gotSingleInstanceLock) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId(APP_ID)
+    createMenu()
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)

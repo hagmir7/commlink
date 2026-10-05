@@ -3,50 +3,84 @@ import { createHashRouter } from 'react-router-dom'
 
 import ErrorPage from './pages/error-page'
 import MainLayout from './layouts/MainLayout'
+// import RootLayout from './layouts/RootLayout'
 import CreateDocument from './pages/create-document'
 import MinimizedDocumentBar from './components/MinimizedDocumentBar'
 import Login from './pages/login'
+import Familles from './components/Familles'
+import TitleBarLayout from './layouts/TitleBarLayout'
+import Articles from './components/Articles'
+import Clients from './components/Clients'
+import Fournisseurs from './components/Fournisseurs'
 
 const Home = lazy(() => import('./pages/Home'))
 
 export const router = createHashRouter([
   {
-    path: '/',
-    element: <MainLayout />,
+    // element: <RootLayout />,
     errorElement: <ErrorPage />,
     children: [
       {
-        index: true,
-        element: <Home />
+        path: '/',
+        element: <MainLayout />,
+        errorElement: <ErrorPage />,
+        children: [
+          {
+            index: true,
+            element: <Home />
+          },
+          {
+            path: '*',
+            element: <ErrorPage />
+          },
+          {
+            path: 'layout/create-document',
+            element: <CreateDocument />
+          },
+          {
+            path: 'layout/documents/:piece',
+            element: <CreateDocument />
+          }
+        ]
       },
       {
-        path: '*',
-        element: <ErrorPage />
+        element: <TitleBarLayout />,
+        errorElement: <ErrorPage />,
+        children: [
+          {
+            path: '/familles',
+            element: <Familles />
+          },
+          {
+            path: '/articles',
+            element: <Articles />
+          },
+          {
+            path: '/clients',
+            element: <Clients />
+          },
+          {
+            path: '/fournisseurs',
+            element: <Fournisseurs />
+          }
+        ]
       },
       {
-        path: 'layout/create-document',
+        path: '/create-document',
         element: <CreateDocument />
       },
       {
-        path: 'layout/documents/:piece',
+        path: '/documents/:piece',
         element: <CreateDocument />
+      },
+      {
+        path: '/minimized-document',
+        element: <MinimizedDocumentBar />
+      },
+      {
+        path: 'login',
+        element: <Login />
       }
     ]
-  },
-  {
-    path: '/create-document',
-    element: <CreateDocument />
-  },
-  {
-    path: '/documents/:piece',
-    element: <CreateDocument />
-  },
-  {
-    path: '/minimized-document',
-    element: <MinimizedDocumentBar />
-  },
-  {
-    path: 'login',
-    element: <Login />
   }
 ])

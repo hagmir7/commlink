@@ -193,3 +193,12 @@ const DOCUMENT_TYPE_LABELS = {
 export function getDocumentTypeLabel(doType) {
   return DOCUMENT_TYPE_LABELS[Number(doType)] ?? 'Document'
 }
+
+const APP_NAME = 'Intercocina'
+
+export function formatTitle(pathname) {
+  const name = pathname.replace(/^\//, '')
+  const label = name.charAt(0).toUpperCase() + name.slice(1)
+
+  return label ? label : APP_NAME
+}
