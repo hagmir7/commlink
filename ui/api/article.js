@@ -27,9 +27,12 @@ export async function findArticleByReference(reference) {
  */
 export async function searchArticles(query) {
   try {
-    const response = await api.get(`articles/short`, {
+    const search = query?.trim()
+
+    const response = await api.get('articles/short', {
       params: {
-        search: query,
+        // only send `search` when there is a value
+        ...(search ? { search } : {}),
         pageSize: 1000,
         page: 1
       }
@@ -42,6 +45,22 @@ export async function searchArticles(query) {
       `Article API error: ${
         error.response?.status || ''
       } ${error.response?.statusText || error.message}`
+    )
+  }
+}
+
+export async function getArticle(ref) {
+  try {
+    const response = await api.get(`articles/${encodeURIComponent(ref)}`)
+    return response.data
+  } catch (error) {
+    if (error.response?.status === 404) {
+      throw new Error(error.response.data?.message || 'Article introuvable')
+    }
+    throw new Error(
+      `Article API error: ${error.response?.status || ''} ${
+        error.response?.statusText || error.message
+      }`
     )
   }
 }

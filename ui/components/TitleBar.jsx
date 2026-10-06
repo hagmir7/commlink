@@ -39,7 +39,9 @@ const TitleBar = ({ title = 'Intercocina' }) => {
           I
         </span>
 
-        <span className="text-[13px] text-gray-800 font-semibold truncate">{title}</span>
+        <span className="text-[13px] text-gray-800 font-semibold truncate" id="window-title">
+          {title}
+        </span>
       </div>
 
       <div className="flex items-center h-full shrink-0" style={NO_DRAG_STYLE}>

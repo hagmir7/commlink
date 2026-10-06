@@ -34,11 +34,11 @@ function createMenu() {
     {
       label: 'Structure',
       submenu: [
-        {
-          label: 'Familles',
-          accelerator: 'CmdOrCtrl+F',
-          click: () => handleOpenShow('/familles')
-        },
+        // {
+        //   label: 'Familles',
+        //   accelerator: 'CmdOrCtrl+F',
+        //   click: () => handleOpenShow('/familles')
+        // },
         {
           label: 'Articles',
           accelerator: 'CmdOrCtrl+Shift+A',
@@ -51,40 +51,40 @@ function createMenu() {
           label: 'Clients',
           accelerator: 'CmdOrCtrl+Shift+C',
           click: () => handleOpenShow('/clients')
-        },
-        {
-          label: 'Fournisseurs',
-          accelerator: 'CmdOrCtrl+Shift+F',
-          click: () => handleOpenShow('/fournisseurs')
         }
+        // {
+        //   label: 'Fournisseurs',
+        //   accelerator: 'CmdOrCtrl+Shift+F',
+        //   click: () => handleOpenShow('/fournisseurs')
+        // }
       ]
     },
 
-    {
-      label: 'Édition',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
-    },
+    // {
+    //   label: 'Édition',
+    //   submenu: [
+    //     { role: 'undo' },
+    //     { role: 'redo' },
+    //     { type: 'separator' },
+    //     { role: 'cut' },
+    //     { role: 'copy' },
+    //     { role: 'paste' },
+    //     { role: 'selectAll' }
+    //   ]
+    // },
 
-    {
-      label: 'Affichage',
-      submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { role: 'togglefullscreen' }
-      ]
-    },
+    // {
+    //   label: 'Affichage',
+    //   submenu: [
+    //     { role: 'reload' },
+    //     { role: 'toggleDevTools' },
+    //     { type: 'separator' },
+    //     { role: 'resetZoom' },
+    //     { role: 'zoomIn' },
+    //     { role: 'zoomOut' },
+    //     { role: 'togglefullscreen' }
+    //   ]
+    // },
 
     {
       label: 'Fenêtre',
@@ -123,8 +123,8 @@ const handleOpenShow = async (url) => {
   try {
     await closeWindowIfOpen(showWindow)
     showWindow = createShowWindow({
-      width: 500,
-      height: 500,
+      width: 900,
+      height: 600,
       url
     })
     showWindow.show()

@@ -152,7 +152,7 @@ export default function Home() {
   const handleDelete = async (key) => {
     if (!key) return
     try {
-      await api.delete(`/documents/${documentType.type}/${key}`)
+      await api.delete(`/documents/${documentType.type}/${key}/delete`)
       setSelectedRowKey(null)
       setReloadKey((k) => k + 1)
       message.success('Document supprimé')

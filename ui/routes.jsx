@@ -12,6 +12,8 @@ import TitleBarLayout from './layouts/TitleBarLayout'
 import Articles from './components/Articles'
 import Clients from './components/Clients'
 import Fournisseurs from './components/Fournisseurs'
+import ShowArticle from './components/ShowArticle'
+import ShowClient from './components/ShowClient'
 
 const Home = lazy(() => import('./pages/Home'))
 
@@ -62,6 +64,16 @@ export const router = createHashRouter([
           {
             path: '/fournisseurs',
             element: <Fournisseurs />
+          },
+
+          {
+            path: '/articles/:ref',
+            element: <ShowArticle />
+          },
+
+          {
+            path: '/clients/:num',
+            element: <ShowClient />
           }
         ]
       },
