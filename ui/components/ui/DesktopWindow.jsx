@@ -141,9 +141,7 @@ export default function DesktopWindow({ open, onClose, title, children, width = 
 
       {/* Body — collapses when minimized */}
       {!minimized && (
-        <div className="max-h-[75vh] overflow-y-auto bg-white px-4 py-3 text-[#37402F]">
-          {children}
-        </div>
+        <div className="max-h-[75vh] overflow-y-auto bg-white pb-2 text-[#37402F]">{children}</div>
       )}
     </Modal>
   )

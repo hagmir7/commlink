@@ -323,7 +323,11 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
     setType(v)
     clearError('type')
     autoSubmit({ type: v })
+    const ref = document.getElementById('documentReference')
+    if (ref.value === '') ref.focus()
   }
+
+  // const focusdateLivraison = () =>
 
   const handleDateLivraisonChange = (value) => {
     setDateLivraison(value)
@@ -439,6 +443,7 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
           disabled: !piece,
           onChange: addCollaborateur
         }}
+        typeValue={type}
         nExpedition={{
           value: nExpedition,
           onChange: (e) => setNExpedition(e.target.value)

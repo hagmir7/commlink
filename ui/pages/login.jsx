@@ -262,12 +262,12 @@ const Login = () => {
                   value: username
                 }))}
                 placeholder="Entrez votre identifiant"
-                size="large"
+                size="medium"
                 className="w-full"
               >
                 <Input
                   prefix={<UserOutlined style={{ color: SAGE[600] }} />}
-                  size="large"
+                  size="medium"
                   className="rounded-lg"
                   style={{ backgroundColor: '#ffffff', borderColor: SAGE[200] }}
                 />
@@ -292,7 +292,7 @@ const Login = () => {
               <Input.Password
                 prefix={<LockOutlined style={{ color: SAGE[600] }} />}
                 placeholder="Entrez votre mot de passe"
-                size="large"
+                size="medium"
                 className="rounded-lg"
                 style={{ backgroundColor: '#ffffff', borderColor: SAGE[200] }}
               />

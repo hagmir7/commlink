@@ -27,7 +27,7 @@ export default function DocumentTotals({ document }) {
 
         <Col span={12} className="px-3 py-2 space-y-1">
           <Line label="Total HT" value={document?.totalHT} />
-          <Line label="Total TTC devise" value={document?.totalTTC} />
+          <Line label="Total TTC" value={document?.totalTTC} />
         </Col>
       </Row>
     </div>

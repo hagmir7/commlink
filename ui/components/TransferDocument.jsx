@@ -177,7 +177,7 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
   }
 
   return (
-    <div>
+    <div className="py-2 px-2">
       <div className="text-[13px] text-gray-800">
         <p className="mb-2 text-gray-700">Indiquer vers quel type transformer ce(s) document(s):</p>
         <Radio.Group

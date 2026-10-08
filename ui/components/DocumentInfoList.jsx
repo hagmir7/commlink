@@ -240,7 +240,7 @@ export default function DocumentInfoList({ open, onClose, docType, docNumber }) 
 
       {!loading && !error && fields.length > 0 && (
         <>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 py-2 px-2">
             {fields.map((field) => {
               const wide = field.type === 'text' && field.size > 30
               const dirty = values[field.name] !== original[field.name]
@@ -261,7 +261,7 @@ export default function DocumentInfoList({ open, onClose, docType, docNumber }) 
           </div>
 
           {/* Sticky action bar */}
-          <div className="sticky bottom-0 -mx-4 -mb-3 mt-3 flex items-center justify-between py-2">
+          <div className="sticky bottom-0 -mx-4 -mb-3 mt-3 flex items-center justify-between py-2 py-2 px-2">
             <span className="text-[12px]">
               {changeCount > 0
                 ? `${changeCount} modification${changeCount > 1 ? 's' : ''}`

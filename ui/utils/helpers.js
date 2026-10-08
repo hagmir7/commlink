@@ -202,3 +202,12 @@ export function formatTitle(pathname) {
 
   return label ? label : APP_NAME
 }
+
+const CURRENCY = 'MAD'
+
+export const formatAmount = (value) =>
+  new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: CURRENCY,
+    minimumFractionDigits: 2
+  }).format(value ?? 0)

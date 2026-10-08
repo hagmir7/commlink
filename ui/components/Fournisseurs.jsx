@@ -1,7 +1,5 @@
 import React from 'react'
 
 export default function Fournisseurs() {
-  return (
-    <div>Fournisseurs</div>
-  )
+  return <div>Fournisseurs</div>
 }

@@ -9,6 +9,7 @@ import DocumentTotals from '../components/DocumentTotals'
 import { api } from '../utils/api'
 import DocumentBarTitle from '../components/DocumentBarTitle'
 import DocumentToolbar from '../components/DocumentToolbar'
+import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
 
 // Must match the status value used for "Envoyé" in your statuses list.
 // Ideally move this to constants/documentTypes.
@@ -26,6 +27,7 @@ export default function CreateDocument() {
   const [hasSelection, setHasSelection] = useState(false)
   const [loadingDocument, setLoadingDocument] = useState(false)
   const [loadingMovement, setLoadingMovement] = useState(false)
+  const [integrationOpen, setIntegrationOpen] = useState(false)
 
   const linesRef = useRef(null)
   const headerRef = useRef(null)
@@ -185,6 +187,9 @@ export default function CreateDocument() {
         // Exposed by DocumentLines via useImperativeHandle
         await linesRef.current?.transform(arg)
         break
+      case 'integrate':
+        setIntegrationOpen(true)
+        break
 
       default:
         break
@@ -224,7 +229,7 @@ export default function CreateDocument() {
         piece={piece}
         documentType={documentType}
         onSelectionChange={handleSelectionChange}
-        onLoadingMovemen={handleLoadingMovement}
+        onLoadingMovement={handleLoadingMovement}
         onUpdate={handleLinesUpdate}
       />
 
@@ -235,17 +240,20 @@ export default function CreateDocument() {
           value={null}
           placeholder="Actions"
           className="w-52"
-          disabled={!hasSelection || loadingMovement}
           suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
           onChange={handleAction}
           options={[
             {
               label: 'Transformer',
               options: [
-                { value: 'transform:Commande', label: 'Transformer en Commande' },
-                { value: 'transform:Livraison', label: 'Transformer en Livraison' },
-                { value: 'transform:Facture', label: 'Transformer en Facture' }
+                { value: 'transform:Commande', label: 'Bon de Commande' },
+                { value: 'transform:Livraison', label: 'Bon de Livraison' },
+                { value: 'transform:Facture', label: 'Facture' }
               ]
+            },
+            {
+              label: 'Intégrer',
+              options: [{ value: 'integrate:open', label: 'Integrer des documents...' }]
             }
           ]}
         />
@@ -287,6 +295,14 @@ export default function CreateDocument() {
           Annuler
         </Button>
       </div>
+      <DocumentIntegrationModal
+        open={integrationOpen}
+        onClose={() => setIntegrationOpen(false)}
+        targetType={documentType}
+        targetPiece={piece}
+        onIntegrated={() => fetchDocument(piece)}
+        document={document}
+      />
     </div>
   )
 }

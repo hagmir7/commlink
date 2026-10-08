@@ -73,18 +73,18 @@ function createMenu() {
     //   ]
     // },
 
-    // {
-    //   label: 'Affichage',
-    //   submenu: [
-    //     { role: 'reload' },
-    //     { role: 'toggleDevTools' },
-    //     { type: 'separator' },
-    //     { role: 'resetZoom' },
-    //     { role: 'zoomIn' },
-    //     { role: 'zoomOut' },
-    //     { role: 'togglefullscreen' }
-    //   ]
-    // },
+    {
+      label: 'Affichage',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { role: 'togglefullscreen' }
+      ]
+    },
 
     {
       label: 'Fenêtre',

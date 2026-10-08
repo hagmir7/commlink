@@ -1,4 +1,4 @@
-const { app, shell, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
+const { app, shell, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron')
 const path = require('node:path')
 const { electronApp, optimizer, is } = require('@electron-toolkit/utils')
 
@@ -19,6 +19,7 @@ const { createMenu } = require('./services/menu.js')
 let mainWindow = null
 let loginWindow = null
 let showWindow = null
+let openWindow = null
 let tray = null
 
 // True once the user (or the OS) has actually asked to quit, as opposed to
@@ -327,4 +328,47 @@ app.on('activate', () => {
   } else if (!loginWindow || loginWindow.isDestroyed()) {
     loginWindow = createLoginWindow()
   }
+})
+
+ipcMain.handle('open', (event, data) => {
+  openWindow = new BrowserWindow({
+    width: data?.width || 1000,
+    height: data?.height || 550,
+    frame: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+    openWindow.loadURL('http://localhost:5173/#' + data?.url)
+  } else {
+    const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
+
+    openWindow.loadFile(indexPath, {
+      hash: data?.url
+    })
+  }
+
+  openWindow.on('closed', () => {
+    openWindow = null
+  })
+})
+
+// Close the current opened window
+ipcMain.handle('close', () => {
+  if (openWindow && !openWindow.isDestroyed()) {
+    openWindow.close()
+    openWindow = null
+  }
+})
+
+ipcMain.handle('show-error', async (event, message) => {
+  await dialog.showMessageBox({
+    type: 'error',
+    title: 'Erreur',
+    message: message
+  })
 })

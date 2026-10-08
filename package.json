@@ -1,10 +1,10 @@
 {
   "name": "Comlink",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Comlink is an interface of sage",
   "main": "electron/main.js",
   "author": "intercocina.com",
-  "homepage": "https://electron-vite.org",
+  "homepage": "https://intercocina.com",
   "type": "commonjs",
   "scripts": {
     "format": "prettier --write .",

@@ -44,6 +44,7 @@ export default function DocumentColumn({
       {/* Référence */}
       <LabeledField label="Référence" labelWidth={80}>
         <Input
+          id="documentReference"
           size="small"
           status={reference.error ? 'error' : undefined}
           value={reference.value}
@@ -62,6 +63,7 @@ export default function DocumentColumn({
           status={type.error ? 'error' : undefined}
           suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
           value={type.value}
+          id="documentTypeSelect"
           onChange={type.onChange}
           options={TYPE_OPTIONS}
         />

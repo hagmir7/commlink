@@ -11,11 +11,14 @@ contextBridge.exposeInMainWorld('api', {
 
   // Windows
   openShow: (payload) => ipcRenderer.invoke('openShow', payload),
+  open: (preload) => ipcRenderer.invoke('open', preload),
+  close: () => ipcRenderer.invoke('close'),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
   restoreWindow: () => ipcRenderer.send('window-restore'),
   user: (payload) => ipcRenderer.invoke('user', payload),
+  showError: (message) => ipcRenderer.invoke('show-error', message),
 
   // Fired by loginWindow.js when the window is maximized/unmaximized.
   // Returns an unsubscribe function so the renderer can clean up.

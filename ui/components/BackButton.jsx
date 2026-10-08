@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 export default function BackButton({ label = '' }) {
   const navigate = useNavigate()
 
+  if (window.history.length <= 1) {
+    return null
+  }
+
   return (
     <button
       type="button"
@@ -19,6 +23,7 @@ export default function BackButton({ label = '' }) {
       >
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
       </svg>
+
       {label}
     </button>
   )

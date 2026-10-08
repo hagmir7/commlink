@@ -30,35 +30,37 @@ export default function SelectDocumentTypeModal({ open, onCancel }) {
 
   return (
     <DesktopWindow open={open} onClose={handleClose} title="Nouveau document" width={300}>
-      <p className="mb-2 text-xs font-normal text-gray-400">
-        Choisissez le type de document à créer
-      </p>
+      <div className="p-2">
+        <p className="mb-2 text-xs font-normal text-gray-400 ">
+          Choisissez le type de document à créer
+        </p>
 
-      <Radio.Group
-        value={documentType}
-        onChange={(e) => setDocumentType(e.target.value)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
-      >
-        {DOCUMENT_TYPES.map((type) => (
-          <Radio key={type.value} value={type.value} className="text-[14px]">
-            {type.label}
-          </Radio>
-        ))}
-      </Radio.Group>
-
-      <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-3">
-        <Button size="small" onClick={handleClose}>
-          Annuler
-        </Button>
-        <Button
-          type="primary"
-          size="small"
-          loading={loading}
-          disabled={documentType === undefined}
-          onClick={handleOk}
+        <Radio.Group
+          value={documentType}
+          onChange={(e) => setDocumentType(e.target.value)}
+          style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
         >
-          OK
-        </Button>
+          {DOCUMENT_TYPES.map((type) => (
+            <Radio key={type.value} value={type.value} className="text-[14px]">
+              {type.label}
+            </Radio>
+          ))}
+        </Radio.Group>
+
+        <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-3">
+          <Button size="small" onClick={handleClose}>
+            Annuler
+          </Button>
+          <Button
+            type="primary"
+            size="small"
+            loading={loading}
+            disabled={documentType === undefined}
+            onClick={handleOk}
+          >
+            OK
+          </Button>
+        </div>
       </div>
     </DesktopWindow>
   )

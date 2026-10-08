@@ -4,13 +4,36 @@ import { LabeledField, FieldError } from './FormFields'
 import { TODAY } from '../utils/dateUtils'
 import { DATE_LIVRAISON_STATUT_OPTIONS } from '../constants/documentTypes'
 
+// Focus + open documentTypeSelect (call only when it has no value yet)
+const openDocumentType = () =>
+  setTimeout(() => {
+    const el = document.getElementById('documentTypeSelect')
+    if (!el) return
+    el.focus()
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true
+      })
+    )
+  }, 100)
+
 /**
  * @param date          { value, error, disabled, onChange }
  * @param dateLivraison { statutValue, onStatutChange, value, error, onChange }
  * @param representant  { value, options, disabled, onChange }
  * @param nExpedition   { value, onChange }
+ * @param typeValue     current value of the document type Select
  */
-export default function DateColumn({ date, dateLivraison, representant, nExpedition }) {
+export default function DateColumn({ date, dateLivraison, representant, nExpedition, typeValue }) {
+  const onDateLivraisonChange = (value, dateString) => {
+    dateLivraison.onChange?.(value, dateString)
+    if (value && !typeValue) openDocumentType()
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {/* Date */}
@@ -26,7 +49,6 @@ export default function DateColumn({ date, dateLivraison, representant, nExpedit
           allowClear={false}
         />
       </LabeledField>
-
       <FieldError error={date.error} offset={78} />
 
       {/* Date livraison */}
@@ -39,12 +61,12 @@ export default function DateColumn({ date, dateLivraison, representant, nExpedit
           suffixIcon={<DownOutlined style={{ fontSize: 9 }} />}
           options={DATE_LIVRAISON_STATUT_OPTIONS}
         />
-
         <DatePicker
           size="small"
+          id="dateLivraison"
           value={dateLivraison.value}
           status={dateLivraison.error ? 'error' : undefined}
-          onChange={dateLivraison.onChange}
+          onChange={onDateLivraisonChange}
           placeholder="Date livraison"
           format="DDMMYY"
           disabledDate={(current) => current && current.startOf('day').isBefore(TODAY)}
@@ -52,7 +74,6 @@ export default function DateColumn({ date, dateLivraison, representant, nExpedit
           allowClear={false}
         />
       </LabeledField>
-
       <FieldError error={dateLivraison.error} offset={78} />
 
       {/* Représentant */}

@@ -24,7 +24,15 @@ const TitleBar = ({ title = 'Intercocina' }) => {
 
   const handleMinimize = useCallback(() => window.api.minimizeWindow(), [])
   const handleMaximize = useCallback(() => window.api.maximizeWindow(), [])
-  const handleClose = useCallback(() => window.api.closeWindow(), [])
+  const currentUrl = window.location.hash.substring(1)
+  const isArticle = String(currentUrl).includes('/articles/')
+  const handleClose = useCallback(() => {
+    if (isArticle) {
+      window.api.close()
+    } else {
+      window.api.closeWindow()
+    }
+  }, [currentUrl])
 
   if (!hasElectron) return null
 
@@ -38,7 +46,6 @@ const TitleBar = ({ title = 'Intercocina' }) => {
         <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold shrink-0">
           I
         </span>
-
         <span className="text-[13px] text-gray-800 font-semibold truncate" id="window-title">
           {title}
         </span>
@@ -50,7 +57,7 @@ const TitleBar = ({ title = 'Intercocina' }) => {
           onClick={handleMinimize}
           aria-label="Minimize window"
           title="Minimize"
-          className="w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200"
+          className={`w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200 ${isArticle ? 'hidden' : ''}`}
         >
           <Minus size={11} />
         </button>
@@ -60,7 +67,7 @@ const TitleBar = ({ title = 'Intercocina' }) => {
           onClick={handleMaximize}
           aria-label="Maximize window"
           title="Maximize"
-          className="w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200"
+          className={`w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200 ${isArticle ? 'hidden' : ''}`}
         >
           {isMaximized ? <Copy size={10} /> : <Square size={10} />}
         </button>

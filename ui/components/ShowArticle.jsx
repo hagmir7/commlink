@@ -48,6 +48,7 @@ function Row({ label, value, disabled, bold, combo, span = 1 }) {
           <Select
             open={false}
             disabled={disabled}
+            size="small"
             value={value || undefined}
             options={value ? [{ value, label: value }] : []}
             className="w-full"
@@ -56,6 +57,7 @@ function Row({ label, value, disabled, bold, combo, span = 1 }) {
           <Input
             readOnly
             disabled={disabled}
+            size="small"
             value={value}
             className={bold ? 'font-semibold' : ''}
           />
@@ -70,11 +72,12 @@ function PriceRow({ label, value, unit }) {
   return (
     <>
       <Label>{label}</Label>
-      <div className="flex min-w-0">
-        <Input readOnly value={value} className="flex-1 min-w-0" />
+      <div className="flex min-w-0 gap-2">
+        <Input readOnly size="small" value={value} className="flex-1 min-w-0" />
         <Select
           open={false}
           value={unit}
+          size="small"
           options={[{ value: unit, label: unit }]}
           className="!w-24 shrink-0"
         />

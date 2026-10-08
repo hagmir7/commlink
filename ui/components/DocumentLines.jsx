@@ -94,7 +94,7 @@ const DocumentLines = forwardRef(function DocumentLines(
     documentType,
     onSelectionChange,
     onUpdate,
-    onLoadingMovemen
+    onLoadingMovement
   },
   ref
 ) {
@@ -189,7 +189,6 @@ const DocumentLines = forwardRef(function DocumentLines(
       }
     } catch (err) {
       console.error(err)
-      // message.error(err?.response?.data?.message || "Erreur lors de la recherche de l'article")
       setSearchModal({ open: true, query: reference })
     } finally {
       setReferenceLoading(false)
@@ -431,37 +430,37 @@ const DocumentLines = forwardRef(function DocumentLines(
 
   const handleMoveUp = useCallback(async () => {
     if (checkedKeys.length === 0) return
-    onLoadingMovemen(true)
+    onLoadingMovement(true)
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/moveup`, {
         lines: buildMovePayload()
       })
       setLineItems((prev) => reorderLineItems(prev, checkedKeys, true))
       message.success('Lignes déplacées vers le haut')
-      onLoadingMovemen(false)
+      onLoadingMovement(false)
     } catch (error) {
-      onLoadingMovemen(false)
+      onLoadingMovement(false)
       console.error(error)
       message.error(error?.response?.data?.message || 'Erreur lors du déplacement vers le haut')
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])
+  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovement])
 
   const handleMoveDown = useCallback(async () => {
     if (checkedKeys.length === 0) return
-    onLoadingMovemen(true)
+    onLoadingMovement(true)
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/movedown`, {
         lines: buildMovePayload()
       })
       setLineItems((prev) => reorderLineItems(prev, checkedKeys, false))
       message.success('Lignes déplacées vers le bas')
-      onLoadingMovemen(false)
+      onLoadingMovement(false)
     } catch (error) {
-      onLoadingMovemen(false)
+      onLoadingMovement(false)
       console.error(error)
       message.error('Erreur lors du déplacement vers le bas')
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovemen])
+  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovement])
 
   useImperativeHandle(
     ref,
@@ -532,6 +531,19 @@ const DocumentLines = forwardRef(function DocumentLines(
     onChange: (keys) => setCheckedKeys(keys)
   }
 
+  // const handleShowArticleDetails = useCallback((articleRef) => {
+  //   handleShow(null, `/articles/${articleRef}`, 1000, 550)
+  // })
+
+  // const handleShowArticleDetails = useCallback((articleRef) => {
+  //   window.open(`/articles/${articleRef}`, '_blank')
+
+  // }, [])
+
+  const handleShowArticleDetails = useCallback((articleRef) => {
+    window.api.open({ url: `/articles/${articleRef}` })
+  }, [])
+
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col">
@@ -584,7 +596,8 @@ const DocumentLines = forwardRef(function DocumentLines(
               rowKey={rowId}
               rowSelection={rowSelection}
               onRow={(record) => ({
-                onClick: () => handleRowClick(record)
+                onClick: () => handleRowClick(record),
+                onDoubleClick: () => handleShowArticleDetails(record.articleRef)
               })}
               /*
                * Pin the table to the exact sum of column widths so its header
