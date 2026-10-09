@@ -111,12 +111,14 @@ export default function DocumentIntegrationModal({
     setSubmitting(true)
     console.log('Integrating documents:', sources)
     try {
-      await api.post(
+      const response = await api.post(
         `/documents/${encodeURIComponent(targetType)}/${encodeURIComponent(targetPiece)}/integrate`,
         { sources }
       )
+
+      console.log('Integration response:', response)
       message.success('Documents intégrés avec succès')
-      onIntegrated?.()
+      onIntegrated?.(response.data.nonIntegratedLines)
       onClose()
     } catch (err) {
       const errorData = err?.response?.data

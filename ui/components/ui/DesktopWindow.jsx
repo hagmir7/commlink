@@ -6,6 +6,10 @@ import Draggable from 'react-draggable'
 /**
  * DesktopWindow — a draggable, chrome-styled window modal.
  *
+ * Props:
+ *   canClose (default true) — when false, the close button is hidden and
+ *   Esc / onCancel no longer close the window.
+ *
  * Sage palette:
  *   50  #F4F6F1   surface / title bar
  *   100 #E7EBE0   hover surface
@@ -14,11 +18,22 @@ import Draggable from 'react-draggable'
  *   600 #5F7052   active accents / focus ring
  *   800 #37402F   primary text
  */
-export default function DesktopWindow({ open, onClose, title, children, width = 600 }) {
+export default function DesktopWindow({
+  open,
+  onClose,
+  title,
+  children,
+  width = 600,
+  canClose = true
+}) {
   const [minimized, setMinimized] = useState(false)
   const [maximized, setMaximized] = useState(false)
   const [bounds, setBounds] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
   const draggleRef = useRef(null)
+
+  const handleClose = () => {
+    if (canClose) onClose?.()
+  }
 
   // Keeps the window from being dragged fully off-screen — recalculated
   // relative to the viewport each time a drag starts.
@@ -44,7 +59,8 @@ export default function DesktopWindow({ open, onClose, title, children, width = 
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
+      keyboard={canClose} // disables closing with Esc when canClose is false
       footer={null}
       centered={!maximized}
       mask={false}
@@ -101,6 +117,7 @@ export default function DesktopWindow({ open, onClose, title, children, width = 
           border: 1px solid #d9d9d9;
         }
       `}</style>
+
       {/* Title bar — drag handle */}
       <div className="desktop-window-titlebar border flex items-center justify-between border-b bg-gradient-to-b from-white to-gray-100 border-gray-300 select-none px-2 py-1 border-t-0 border-r-0 border-l-0 active:cursor-grabbing">
         <span className="select-none truncate text-md tracking-tight text-[#37402F] font-black">
@@ -128,14 +145,16 @@ export default function DesktopWindow({ open, onClose, title, children, width = 
               <ExpandOutlined style={{ fontSize: 11 }} />
             )}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[#5F7052] transition-colors hover:bg-[#B3543F] hover:text-white"
-          >
-            <CloseOutlined style={{ fontSize: 11 }} />
-          </button>
+          {canClose && (
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-[#5F7052] transition-colors hover:bg-[#B3543F] hover:text-white"
+            >
+              <CloseOutlined style={{ fontSize: 11 }} />
+            </button>
+          )}
         </div>
       </div>
 

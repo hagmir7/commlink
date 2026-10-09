@@ -10,6 +10,7 @@ import { api } from '../utils/api'
 import DocumentBarTitle from '../components/DocumentBarTitle'
 import DocumentToolbar from '../components/DocumentToolbar'
 import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
+import StockUnavailabilityModal from '../components/ui/StockUnavailabilityModal'
 
 // Must match the status value used for "Envoyé" in your statuses list.
 // Ideally move this to constants/documentTypes.
@@ -28,6 +29,8 @@ export default function CreateDocument() {
   const [loadingDocument, setLoadingDocument] = useState(false)
   const [loadingMovement, setLoadingMovement] = useState(false)
   const [integrationOpen, setIntegrationOpen] = useState(false)
+  const [unavailabilityOpen, setUnavailabilityOpen] = useState(false)
+  const [unavailabilityData, setUnavailabilityData] = useState(null)
 
   const linesRef = useRef(null)
   const headerRef = useRef(null)
@@ -196,6 +199,14 @@ export default function CreateDocument() {
     }
   }
 
+  const integrationComplete = (data) => {
+    fetchDocument(piece)
+    // setIntegrationOpen(false)
+    // fetchDocument(piece)
+    setUnavailabilityOpen(true)
+    setUnavailabilityData(data)
+  }
+
   return (
     <div
       className="bg-[#f0f0f0] shadow-lg w-full h-screen max-h-screen flex flex-col overflow-hidden"
@@ -300,8 +311,14 @@ export default function CreateDocument() {
         onClose={() => setIntegrationOpen(false)}
         targetType={documentType}
         targetPiece={piece}
-        onIntegrated={() => fetchDocument(piece)}
+        onIntegrated={integrationComplete}
         document={document}
+      />
+
+      <StockUnavailabilityModal
+        open={unavailabilityOpen}
+        onClose={() => setUnavailabilityOpen(false)}
+        unavailabilityData={unavailabilityData}
       />
     </div>
   )
