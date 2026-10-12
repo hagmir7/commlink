@@ -209,6 +209,7 @@ export default function DocumentToolbar({ document, documentType, updateDocument
           currentDocumentType={documentType}
           document={document}
           setOpen={setTransferOpen}
+          onTransferred={updateDocumentStatus}
         />
       </DesktopWindow>
 

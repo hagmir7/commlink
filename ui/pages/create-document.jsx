@@ -13,7 +13,6 @@ import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
 import StockUnavailabilityModal from '../components/ui/StockUnavailabilityModal'
 
 // Must match the status value used for "Envoyé" in your statuses list.
-// Ideally move this to constants/documentTypes.
 const ENVOYER_STATUT_VALUE = 1
 
 export default function CreateDocument() {
@@ -29,21 +28,29 @@ export default function CreateDocument() {
   const [loadingDocument, setLoadingDocument] = useState(false)
   const [loadingMovement, setLoadingMovement] = useState(false)
   const [integrationOpen, setIntegrationOpen] = useState(false)
+
+  // Stock unavailability queue: one modal step per item in the list
   const [unavailabilityOpen, setUnavailabilityOpen] = useState(false)
-  const [unavailabilityData, setUnavailabilityData] = useState(null)
+  const [unavailabilityData, setUnavailabilityData] = useState([])
+  const [unavailabilityIndex, setUnavailabilityIndex] = useState(0)
+
+  // Values validated by the user for each item (index-aligned with the data)
+  const unavailabilityResultsRef = useRef([])
 
   const linesRef = useRef(null)
   const headerRef = useRef(null)
 
   /**
-   * Fetch document
+   * Fetch document.
+   * `silent` = background refresh: no loading flag, and the existing
+   * document is kept on screen if the request fails.
    */
-  const fetchDocument = async (currentPiece) => {
+  const fetchDocument = async (currentPiece, { silent = false } = {}) => {
     if (!currentPiece || !documentType) {
       return
     }
 
-    setLoadingDocument(true)
+    if (!silent) setLoadingDocument(true)
 
     try {
       const response = await api.get(`documents/${currentPiece}`)
@@ -58,10 +65,12 @@ export default function CreateDocument() {
         errorData?.title || errorData?.detail || 'Erreur lors de la récupération du document'
       )
 
-      setDocument(null)
-      setLineItems([])
+      if (!silent) {
+        setDocument(null)
+        setLineItems([])
+      }
     } finally {
-      setLoadingDocument(false)
+      if (!silent) setLoadingDocument(false)
     }
   }
 
@@ -75,6 +84,7 @@ export default function CreateDocument() {
       setDocument(null)
       setLineItems([])
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [piece, documentType])
 
   /**
@@ -140,15 +150,13 @@ export default function CreateDocument() {
 
   /**
    * Change the status to "Envoyé" and save the WHOLE form.
-   * The form builds the full payload, so we ask it to save instead of
-   * calling update({ statut }) with a partial body (which gives a 400).
    */
   const handleUpdateStatusToEnvoyer = async () => {
     if (!piece) return
 
     try {
       const saved = await headerRef.current?.submitWithStatut(ENVOYER_STATUT_VALUE)
-      if (saved) fetchDocument(piece) // reload from the server
+      if (saved) await fetchDocument(piece, { silent: true })
     } catch {
       // update() already showed the error toast
     }
@@ -169,25 +177,22 @@ export default function CreateDocument() {
   }
 
   /**
-   * Refresh document after line update
+   * Refresh document after a line update.
+   * Returns the promise so callers can `await onUpdate()`.
    */
   const handleLinesUpdate = () => {
-    if (piece) {
-      fetchDocument(piece)
-    }
+    if (!piece) return Promise.resolve()
+    return fetchDocument(piece, { silent: true })
   }
 
   /**
    * Handle an entry picked from the "Actions" dropdown.
-   * Values are encoded as `"<action>:<arg>"` so a single Select can drive
-   * several commands without extra state.
    */
   const handleAction = async (value) => {
     const [action, arg] = value.split(':')
 
     switch (action) {
       case 'transform':
-        // Exposed by DocumentLines via useImperativeHandle
         await linesRef.current?.transform(arg)
         break
       case 'integrate':
@@ -199,12 +204,45 @@ export default function CreateDocument() {
     }
   }
 
+  /**
+   * Called when the integration finishes.
+   */
   const integrationComplete = (data) => {
-    fetchDocument(piece)
-    // setIntegrationOpen(false)
-    // fetchDocument(piece)
-    setUnavailabilityOpen(true)
-    setUnavailabilityData(data)
+    fetchDocument(piece, { silent: true })
+
+    if (Array.isArray(data) && data.length > 0) {
+      unavailabilityResultsRef.current = []
+      setUnavailabilityData(data)
+      setUnavailabilityIndex(0)
+      setUnavailabilityOpen(true)
+    }
+  }
+
+  /**
+   * Close the whole unavailability queue and reset its state
+   */
+  const resetUnavailability = () => {
+    setUnavailabilityOpen(false)
+    setUnavailabilityData([])
+    setUnavailabilityIndex(0)
+  }
+
+  /**
+   * User clicked OK: store the values, then show the next item,
+   * or close after the last one.
+   */
+  const handleUnavailabilityOk = (values) => {
+    unavailabilityResultsRef.current[unavailabilityIndex] = values
+
+    const nextIndex = unavailabilityIndex + 1
+
+    if (nextIndex < unavailabilityData.length) {
+      setUnavailabilityIndex(nextIndex)
+      return
+    }
+
+    resetUnavailability()
+    fetchDocument(piece, { silent: true })
   }
 
   return (
@@ -306,6 +344,7 @@ export default function CreateDocument() {
           Annuler
         </Button>
       </div>
+
       <DocumentIntegrationModal
         open={integrationOpen}
         onClose={() => setIntegrationOpen(false)}
@@ -315,10 +354,15 @@ export default function CreateDocument() {
         document={document}
       />
 
+      {/* key remounts the modal for each item so its local state resets */}
       <StockUnavailabilityModal
+        key={unavailabilityIndex}
         open={unavailabilityOpen}
-        onClose={() => setUnavailabilityOpen(false)}
-        unavailabilityData={unavailabilityData}
+        onOk={handleUnavailabilityOk}
+        onClose={resetUnavailability}
+        unvilableData={unavailabilityData[unavailabilityIndex] ?? null}
+        current={unavailabilityIndex + 1}
+        total={unavailabilityData.length}
       />
     </div>
   )

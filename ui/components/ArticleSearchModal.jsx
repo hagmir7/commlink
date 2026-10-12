@@ -62,7 +62,7 @@ export default function ArticleSearchModal({ open, initialQuery = '', onCancel, 
       width={800}
       height={1200}
     >
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full p-2">
         <Input.Search
           autoFocus
           placeholder="Référence, désignation..."

@@ -63,8 +63,6 @@ const VAT_RATE = 1.2
 
 /**
  * Width of the checkbox column injected by `rowSelection`.
- * The inputs row reserves the same width so the first input aligns with the
- * first data column.
  */
 const SELECTION_COLUMN_WIDTH = 32
 
@@ -82,10 +80,52 @@ const EMPTY_FORM = {
   remise: '',
   description: '',
   profondeur: '',
-  nom: ''
+  nom: '',
+  episseur: ''
 }
 
 export const rowId = (record) => `${record.articleRef}-${record.key}`
+
+const hasKey = (k) => k !== null && k !== undefined
+const sameKey = (a, b) => hasKey(a) && hasKey(b) && String(a) === String(b)
+
+/**
+ * Pure helper: moves the selected items one step up or down.
+ */
+const reorderLineItems = (items, keys, up) => {
+  const newItems = [...items]
+  const selected = newItems.filter((item) => keys.includes(rowId(item)))
+  if (selected.length === 0) return newItems
+
+  const originalIndexMap = new Map()
+  items.forEach((item, idx) => originalIndexMap.set(item, idx))
+
+  selected.sort((a, b) =>
+    up
+      ? originalIndexMap.get(a) - originalIndexMap.get(b)
+      : originalIndexMap.get(b) - originalIndexMap.get(a)
+  )
+
+  for (const item of selected) {
+    const currentIdx = newItems.indexOf(item)
+    if (up) {
+      if (currentIdx > 0) {
+        ;[newItems[currentIdx - 1], newItems[currentIdx]] = [
+          newItems[currentIdx],
+          newItems[currentIdx - 1]
+        ]
+      }
+    } else {
+      if (currentIdx < newItems.length - 1) {
+        ;[newItems[currentIdx + 1], newItems[currentIdx]] = [
+          newItems[currentIdx],
+          newItems[currentIdx + 1]
+        ]
+      }
+    }
+  }
+  return newItems
+}
 
 const DocumentLines = forwardRef(function DocumentLines(
   {
@@ -98,7 +138,7 @@ const DocumentLines = forwardRef(function DocumentLines(
   },
   ref
 ) {
-  const { lineItems, setLineItems, addArticles, updateLineItem, removeLineItems } =
+  const { lineItems, setLineItems, updateLineItem, removeLineItems } =
     useLineItems(initialLineItems)
 
   const [widths, setWidths] = useState(() =>
@@ -114,20 +154,13 @@ const DocumentLines = forwardRef(function DocumentLines(
   const [conditionnementOptions, setConditionnementOptions] = useState([])
   const [conditionnementMeta, setConditionnementMeta] = useState({})
 
-  /**
-   * Exact sum of every column width (checkbox + data columns).
-   * Used as the table's fixed width and as the minimum width of the wrapper,
-   * so the inputs row and the table columns can never drift apart.
-   */
+  const isEditing = hasKey(editingKey)
+
   const totalWidth = useMemo(
     () => SELECTION_COLUMN_WIDTH + COLUMN_DEFS.reduce((sum, col) => sum + widths[col.key], 0),
     [widths]
   )
 
-  /**
-   * Measured height of the sticky filter row. The table header sticks right
-   * below it (top: filterRowHeight) so headers stay visible while scrolling.
-   */
   const filterRowRef = useRef(null)
   const [filterRowHeight, setFilterRowHeight] = useState(0)
 
@@ -146,6 +179,27 @@ const DocumentLines = forwardRef(function DocumentLines(
   useEffect(() => {
     onSelectionChange?.(checkedKeys)
   }, [checkedKeys, onSelectionChange])
+
+  /**
+   * On refresh, keep the selection: only drop ids that no longer exist.
+   */
+  useEffect(() => {
+    const existing = new Set(lineItems.map(rowId))
+    setCheckedKeys((prev) => {
+      const next = prev.filter((id) => existing.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [lineItems])
+
+  /**
+   * On refresh, leave edit mode if the edited row no longer exists
+   * (prevents "Ligne introuvable" on a stale key).
+   */
+  useEffect(() => {
+    if (!hasKey(editingKey)) return
+    if (!lineItems.some((li) => sameKey(li.key, editingKey))) resetForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineItems])
 
   function resizeColumn(key, startWidth, delta) {
     setWidths((prev) => ({
@@ -169,6 +223,29 @@ const DocumentLines = forwardRef(function DocumentLines(
     handleSave()
   }
 
+  /**
+   * Adds lines on the server, then refetches. The server is the source of
+   * truth: no optimistic local add (it created temporary keys that vanished
+   * on refetch and broke the edit/selection state).
+   */
+  const addLines = async (data) => {
+    try {
+      await api.post(`documents/${documentType}/${piece}/lines`, {
+        lignes: data
+      })
+      await onUpdate?.()
+      return true
+    } catch (error) {
+      console.error(error)
+      message.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          "Erreur lors de l'ajout des lignes"
+      )
+      return false
+    }
+  }
+
   async function handleReferenceKeyDown(e) {
     if (e.key !== 'Enter') return
     const reference = formValues.articleRef?.trim()
@@ -179,10 +256,9 @@ const DocumentLines = forwardRef(function DocumentLines(
       const matches = await findArticleByReference(reference)
       if (matches.length === 1) {
         const article = matches[0]
-        addArticles(article)
-        addLines([{ reference, quantite: 1 }])
+        const ok = await addLines([{ reference, quantite: 1 }])
 
-        message.success(`Article "${article.reference}" ajouté`)
+        if (ok) message.success(`Article "${article.reference}" ajouté`)
         resetForm()
       } else {
         setSearchModal({ open: true, query: reference })
@@ -195,28 +271,21 @@ const DocumentLines = forwardRef(function DocumentLines(
     }
   }
 
-  function handleModalConfirm(selectedArticles) {
-    if (selectedArticles.length > 0) {
-      addArticles(selectedArticles)
-      addLines(selectedArticles.map((item) => ({ reference: item.reference, quantite: 1 })))
-      message.success(
-        selectedArticles.length > 1
-          ? `${selectedArticles.length} articles ajoutés`
-          : `Article "${selectedArticles[0].reference}" ajouté`
-      )
-    }
+  async function handleModalConfirm(selectedArticles) {
     setSearchModal({ open: false, query: '' })
     resetForm()
-  }
 
-  const addLines = async (data) => {
-    try {
-      await api.post(`documents/${documentType}/${piece}/lines`, {
-        lignes: data
-      })
-      onUpdate()
-    } catch (error) {
-      console.error(error)
+    if (selectedArticles.length > 0) {
+      const ok = await addLines(
+        selectedArticles.map((item) => ({ reference: item.reference, quantite: 1 }))
+      )
+      if (ok) {
+        message.success(
+          selectedArticles.length > 1
+            ? `${selectedArticles.length} articles ajoutés`
+            : `Article "${selectedArticles[0].reference}" ajouté`
+        )
+      }
     }
   }
 
@@ -263,11 +332,12 @@ const DocumentLines = forwardRef(function DocumentLines(
   }
 
   async function handleSave() {
-    if (!editingKey) return
+    if (!isEditing) return
 
-    const item = lineItems.find((li) => li.key === editingKey)
+    const item = lineItems.find((li) => sameKey(li.key, editingKey))
     if (!item) {
       message.error('Ligne introuvable')
+      resetForm()
       return
     }
 
@@ -308,10 +378,10 @@ const DocumentLines = forwardRef(function DocumentLines(
 
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/update`, payload)
-      updateLineItem(editingKey, formValues)
+      updateLineItem(item.key, formValues)
       message.success('Ligne mise à jour')
-      onUpdate()
       resetForm()
+      await onUpdate?.()
     } catch (error) {
       console.error(error?.response?.data)
       message.error(
@@ -324,25 +394,28 @@ const DocumentLines = forwardRef(function DocumentLines(
     if (checkedKeys.length === 0) return
 
     const payload = {
-      lines: checkedKeys.map((id) => {
-        const item = lineItems.find((li) => `${li.articleRef}-${li.key}` === id)
-        const position = lineItems.indexOf(item) + 1
-        return { ref: item.articleRef, key: position }
-      })
+      lines: checkedKeys
+        .map((id) => {
+          const item = lineItems.find((li) => rowId(li) === id)
+          if (!item) return null
+          return { ref: item.articleRef, key: lineItems.indexOf(item) + 1 }
+        })
+        .filter(Boolean)
     }
 
     try {
       await api.post(`documents/${documentType}/${piece}/lignes/delete`, payload)
       removeLineItems(checkedKeys)
-      if (editingKey && checkedKeys.some((id) => id.endsWith(`-${editingKey}`))) resetForm()
+      // Positions shift after a deletion: always leave edit mode.
+      resetForm()
       setCheckedKeys([])
-      onUpdate()
       message.success('Lignes supprimées')
+      await onUpdate?.()
     } catch (error) {
       console.error(error)
       message.error('Erreur lors de la suppression des lignes')
     }
-  }, [checkedKeys, lineItems, documentType, piece, editingKey, removeLineItems, onUpdate])
+  }, [checkedKeys, lineItems, documentType, piece, removeLineItems, onUpdate])
 
   const handleTransform = useCallback(
     async (target) => {
@@ -352,10 +425,9 @@ const DocumentLines = forwardRef(function DocumentLines(
         return
       }
 
-      // Map selected row ids → 1-based positions in the current list
       const positions = checkedKeys
         .map((id) => {
-          const item = lineItems.find((li) => `${li.articleRef}-${li.key}` === id)
+          const item = lineItems.find((li) => rowId(li) === id)
           return item ? lineItems.indexOf(item) + 1 : null
         })
         .filter((pos) => pos !== null)
@@ -367,10 +439,10 @@ const DocumentLines = forwardRef(function DocumentLines(
         })
 
         setCheckedKeys([])
-        onUpdate()
         message.success(
           positions.length > 1 ? `${positions.length} lignes transformées` : 'Ligne transformée'
         )
+        await onUpdate?.()
       } catch (error) {
         console.error(error?.response?.data || error)
         message.error(
@@ -383,49 +455,39 @@ const DocumentLines = forwardRef(function DocumentLines(
     [checkedKeys, lineItems, documentType, piece, onUpdate]
   )
 
-  const reorderLineItems = (items, keys, up) => {
-    const newItems = [...items]
-    const selected = newItems.filter((item) => keys.includes(`${item.articleRef}-${item.key}`))
-    if (selected.length === 0) return newItems
-
-    const originalIndexMap = new Map()
-    items.forEach((item, idx) => originalIndexMap.set(item, idx))
-
-    selected.sort((a, b) =>
-      up
-        ? originalIndexMap.get(a) - originalIndexMap.get(b)
-        : originalIndexMap.get(b) - originalIndexMap.get(a)
-    )
-
-    for (const item of selected) {
-      const currentIdx = newItems.indexOf(item)
-      if (up) {
-        if (currentIdx > 0) {
-          ;[newItems[currentIdx - 1], newItems[currentIdx]] = [
-            newItems[currentIdx],
-            newItems[currentIdx - 1]
-          ]
-        }
-      } else {
-        if (currentIdx < newItems.length - 1) {
-          ;[newItems[currentIdx + 1], newItems[currentIdx]] = [
-            newItems[currentIdx],
-            newItems[currentIdx + 1]
-          ]
-        }
-      }
-    }
-    return newItems
-  }
-
   const buildMovePayload = useCallback(
     () =>
-      checkedKeys.map((id) => {
-        const item = lineItems.find((li) => `${li.articleRef}-${li.key}` === id)
-        const position = lineItems.indexOf(item) + 1
-        return { ref: item.articleRef, key: position }
-      }),
+      checkedKeys
+        .map((id) => {
+          const item = lineItems.find((li) => rowId(li) === id)
+          if (!item) return null
+          return { ref: item.articleRef, key: lineItems.indexOf(item) + 1 }
+        })
+        .filter(Boolean),
     [checkedKeys, lineItems]
+  )
+
+  /**
+   * Reorders locally, then renumbers keys (key = new position) so they match
+   * the server's next refetch. Selection and edited row are remapped.
+   */
+  const applyLocalMove = useCallback(
+    (up) => {
+      const moved = reorderLineItems(lineItems, checkedKeys, up)
+      const selected = new Set(checkedKeys)
+
+      const renumbered = moved.map((item, i) => ({ ...item, key: i + 1 }))
+      const newChecked = renumbered.filter((_, i) => selected.has(rowId(moved[i]))).map(rowId)
+
+      setLineItems(renumbered)
+      setCheckedKeys(newChecked)
+
+      if (hasKey(editingKey)) {
+        const idx = moved.findIndex((item) => sameKey(item.key, editingKey))
+        if (idx >= 0) setEditingKey(idx + 1)
+      }
+    },
+    [lineItems, checkedKeys, editingKey, setLineItems]
   )
 
   const handleMoveUp = useCallback(async () => {
@@ -435,15 +497,15 @@ const DocumentLines = forwardRef(function DocumentLines(
       await api.post(`documents/${documentType}/${piece}/lignes/moveup`, {
         lines: buildMovePayload()
       })
-      setLineItems((prev) => reorderLineItems(prev, checkedKeys, true))
-      message.success('Lignes déplacées vers le haut')
-      onLoadingMovement(false)
+      applyLocalMove(true)
+      // message.success('Lignes déplacées vers le haut')
     } catch (error) {
-      onLoadingMovement(false)
       console.error(error)
       message.error(error?.response?.data?.message || 'Erreur lors du déplacement vers le haut')
+    } finally {
+      onLoadingMovement(false)
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovement])
+  }, [checkedKeys, buildMovePayload, applyLocalMove, documentType, piece, onLoadingMovement])
 
   const handleMoveDown = useCallback(async () => {
     if (checkedKeys.length === 0) return
@@ -452,15 +514,15 @@ const DocumentLines = forwardRef(function DocumentLines(
       await api.post(`documents/${documentType}/${piece}/lignes/movedown`, {
         lines: buildMovePayload()
       })
-      setLineItems((prev) => reorderLineItems(prev, checkedKeys, false))
-      message.success('Lignes déplacées vers le bas')
-      onLoadingMovement(false)
+      applyLocalMove(false)
+      // message.success('Lignes déplacées vers le bas')
     } catch (error) {
-      onLoadingMovement(false)
       console.error(error)
-      message.error('Erreur lors du déplacement vers le bas')
+      message.error(error?.response?.data?.message || 'Erreur lors du déplacement vers le bas')
+    } finally {
+      onLoadingMovement(false)
     }
-  }, [checkedKeys, buildMovePayload, documentType, piece, setLineItems, onLoadingMovement])
+  }, [checkedKeys, buildMovePayload, applyLocalMove, documentType, piece, onLoadingMovement])
 
   useImperativeHandle(
     ref,
@@ -471,7 +533,7 @@ const DocumentLines = forwardRef(function DocumentLines(
       transform: handleTransform,
       clearSelection: () => setCheckedKeys([])
     }),
-    [handleMoveUp, handleMoveDown, handleDelete]
+    [handleMoveUp, handleMoveDown, handleDelete, handleTransform]
   )
 
   const columns = useMemo(
@@ -489,13 +551,7 @@ const DocumentLines = forwardRef(function DocumentLines(
               <ColumnResizeHandle onResize={(delta) => resizeColumn(key, startWidth, delta)} />
             </div>
           ),
-          // 👇 default render for every column: hide 0 / empty values
-          render: (value) => {
-            if (value === 0 || value === '' || value === null || value === undefined) {
-              return ''
-            }
-            return value
-          }
+          render: renderCell
         }
 
         if (key === 'designation') {
@@ -531,15 +587,6 @@ const DocumentLines = forwardRef(function DocumentLines(
     onChange: (keys) => setCheckedKeys(keys)
   }
 
-  // const handleShowArticleDetails = useCallback((articleRef) => {
-  //   handleShow(null, `/articles/${articleRef}`, 1000, 550)
-  // })
-
-  // const handleShowArticleDetails = useCallback((articleRef) => {
-  //   window.open(`/articles/${articleRef}`, '_blank')
-
-  // }, [])
-
   const handleShowArticleDetails = useCallback((articleRef) => {
     window.api.open({ url: `/articles/${articleRef}` })
   }, [])
@@ -547,7 +594,7 @@ const DocumentLines = forwardRef(function DocumentLines(
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* Action bar — kept outside the scroll container so buttons stay reachable */}
+        {/* Action bar */}
         <div className="flex shrink-0 items-center justify-end gap-1 bg-white px-2 py-1">
           <Button size="small" onClick={resetForm}>
             Nouveau
@@ -555,18 +602,10 @@ const DocumentLines = forwardRef(function DocumentLines(
           <Button size="small" disabled={checkedKeys.length === 0} onClick={handleDelete}>
             Supprimer
           </Button>
-          <Button size="small" type="primary" disabled={!editingKey} onClick={handleSave}>
+          <Button size="small" type="primary" disabled={!isEditing} onClick={handleSave}>
             Enregistrer
           </Button>
         </div>
-
-        {/*
-          Single scroll container → only ONE horizontal scrollbar for both
-          the filter row and the table.
-          The wrapper fills the container by default (w-full) but never shrinks
-          below `totalWidth`, so the columns keep their pixel widths and stay
-          perfectly aligned with the inputs row.
-        */}
         <div
           className="min-h-0 flex-1 overflow-auto bg-white"
           style={{ '--filter-row-height': `${filterRowHeight}px` }}
@@ -581,7 +620,7 @@ const DocumentLines = forwardRef(function DocumentLines(
                 onReferenceKeyDown={handleReferenceKeyDown}
                 onEnterKeyDown={handleOnEnterKeyDown}
                 referenceLoading={referenceLoading}
-                isEditing={Boolean(editingKey)}
+                isEditing={isEditing}
                 piece={piece}
                 conditionnementOptions={conditionnementOptions}
                 selectionColumnWidth={SELECTION_COLUMN_WIDTH}
@@ -599,11 +638,6 @@ const DocumentLines = forwardRef(function DocumentLines(
                 onClick: () => handleRowClick(record),
                 onDoubleClick: () => handleShowArticleDetails(record.articleRef)
               })}
-              /*
-               * Pin the table to the exact sum of column widths so its header
-               * is left-aligned with the inputs row (never centered / stretched).
-               * No `scroll` prop: the outer wrapper owns horizontal scrolling.
-               */
               style={{ width: totalWidth }}
               tableLayout="fixed"
               locale={{ emptyText: <Empty description="Aucun article" /> }}
@@ -623,7 +657,9 @@ const DocumentLines = forwardRef(function DocumentLines(
               "
               rowClassName={(record) =>
                 `text-[13px] whitespace-nowrap ${
-                  record.key === editingKey ? '[&>td]:bg-blue-100! [&>td:hover]:bg-blue-100!' : ''
+                  sameKey(record.key, editingKey)
+                    ? '[&>td]:bg-blue-100! [&>td:hover]:bg-blue-100!'
+                    : ''
                 }`
               }
             />

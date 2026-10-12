@@ -1,28 +1,22 @@
 import { Radio, Select, Input, DatePicker, Checkbox, Button, message } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
+
 import { api } from '../utils/api'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { useNavigate } from 'react-router-dom'
 
+import StockUnavailabilityModal from './ui/StockUnavailabilityModal'
+import useUnavailabilityQueue from '../hooks/useUnavailabilityQueue'
+
 dayjs.extend(customParseFormat)
 const TODAY = dayjs().startOf('day')
 
 // ---------------------------------------------------------------------------
-// Ordered workflow chain (vente).
-// `target` matches the C# enum Demo.Models.TransformTarget:
-//   Commande | PrepaLivraison | Livraison | Facture
-// Source-only types have `target: null`.
-// ---------------------------------------------------------------------------
 const DOCUMENT_CHAIN = [
   { label: 'Devis', value: 'DocumentTypeVenteDevis', target: null, hidden: true },
   { label: 'Bon de commande', value: 'DocumentTypeVenteCommande', target: 'Commande' },
-  // {
-  //   label: 'Préparation de livraison',
-  //   value: 'DocumentTypeVentePrepaLivraison',
-  //   target: 'PrepaLivraison'
-  // },
   { label: 'Bon de livraison', value: 'DocumentTypeVenteLivraison', target: 'Livraison' },
   { label: 'Facture', value: 'DocumentTypeVenteFacture', target: 'Facture' }
 ]
@@ -35,7 +29,14 @@ const transformOptions = [
   { key: 'appliquerBaremes', label: 'Appliquer les barèmes' }
 ]
 
-export default function TransferDocument({ currentDocumentType, document, setOpen }) {
+export default function TransferDocument({
+  currentDocumentType,
+  document,
+  setOpen,
+  onTransferred
+}) {
+  const navigate = useNavigate()
+
   // Position of the current document in the chain (-1 if unknown)
   const currentIndex = useMemo(
     () => DOCUMENT_CHAIN.findIndex((d) => d.value === currentDocumentType),
@@ -59,7 +60,6 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
   const [statutOptions, setStatutOptions] = useState([])
   const [date, setDate] = useState(TODAY)
   const [submitting, setSubmitting] = useState(false)
-  const navigate = useNavigate()
 
   const [options, setOptions] = useState({
     conserverDevis: false,
@@ -67,6 +67,11 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
     recalculerPrix: false,
     recalculerFrais: false,
     appliquerBaremes: false
+  })
+
+  const queue = useUnavailabilityQueue(() => {
+    onTransferred?.()
+    setOpen(false)
   })
 
   // Re-sync when the source document changes
@@ -155,7 +160,19 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
         payload
       )
 
-      const newPiece = response?.data?.resultat
+      const newPiece = response?.data?.resultat ?? response?.data?.piece
+      const missing = response?.data?.nonTransferred ?? []
+      if (missing.length > 0) {
+        message.warning(
+          newPiece
+            ? `Document ${newPiece} créé, mais ${missing.length} ligne(s) non transférée(s).`
+            : `${missing.length} ligne(s) non transférée(s).`
+        )
+        queue.start(missing)
+        onTransferred?.()
+        return
+      }
+
       if (!newPiece) {
         message.error('Aucun document généré.')
         return
@@ -165,12 +182,12 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
       navigate(`/documents/${newPiece}?documentType=${documentType}`)
       setOpen(false)
     } catch (error) {
-      console.error(error?.response?.data || error)
-      message.error(
-        error?.response?.data?.message ||
-          error?.response?.data?.detail ||
-          'Erreur lors de la transformation.'
-      )
+      const data = error?.response?.data
+      console.error(data || error)
+      message.error(data?.message || data?.title || 'Erreur lors de la transformation.')
+
+      // No document was created: show every line, stay on this dialog
+      queue.start(data?.nonTransferred)
     } finally {
       setSubmitting(false)
     }
@@ -226,8 +243,7 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
               suffixIcon={<DownOutlined className="text-[10px] text-gray-500" />}
               options={[
                 { value: 'souche_a', label: 'Souche A' },
-                { value: 'souche_b', label: 'Souche B' },
-                { value: 'souche_c', label: 'Souche C' }
+                { value: 'souche_b', label: 'Souche B' }
               ]}
             />
           </FieldRow>
@@ -295,6 +311,9 @@ export default function TransferDocument({ currentDocumentType, document, setOpe
           Annuler
         </Button>
       </div>
+
+      {/* key remounts the modal for each item so its local state resets */}
+      <StockUnavailabilityModal key={queue.index} {...queue.modalProps} />
     </div>
   )
 }

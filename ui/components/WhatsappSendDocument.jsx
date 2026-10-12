@@ -3,11 +3,6 @@ import { Button, Form, Input, message as toast } from 'antd'
 import { WhatsAppOutlined, SendOutlined, LoadingOutlined } from '@ant-design/icons'
 import DesktopWindow from './ui/DesktopWindow'
 
-/**
- * Turns whatever the user typed into digits with country code:
- *   "+212 600-000000" -> "212600000000"
- *   "0600000000"      -> "212600000000"  (when defaultCountryCode = '212')
- */
 function normalizePhone(raw, defaultCountryCode) {
   let digits = String(raw || '').replace(/\D/g, '')
   if (digits.startsWith('00')) digits = digits.slice(2)
@@ -17,19 +12,6 @@ function normalizePhone(raw, defaultCountryCode) {
   return digits
 }
 
-/**
- * Two modes:
- *  - Controlled (toolbar/menu use): pass `open` + `onClose`. No trigger button.
- *  - Standalone: omit `open`; a trigger button is rendered.
- *
- * Props
- *  - pdfUrl:             PDF to send (required)
- *  - fileName:           name shown in WhatsApp, e.g. "Invoice-123"
- *  - defaultPhone:       prefilled phone (e.g. the customer's number)
- *  - defaultMessage:     prefilled text (optional)
- *  - defaultCountryCode: for numbers typed with a leading 0 (default '212')
- *  - buttonLabel / buttonProps: standalone trigger button only
- */
 export default function WhatsappSendDocument({
   open: controlledOpen,
   onClose,
@@ -105,64 +87,72 @@ export default function WhatsappSendDocument({
       )}
 
       <DesktopWindow open={open} onClose={closeWindow} title="Envoyer via WhatsApp" width={460}>
-        <Form form={form} layout="vertical" requiredMark={false} disabled={sending}>
-          <Form.Item
-            label="Numéro de téléphone"
-            name="phone"
-            extra="Avec indicatif pays, ou commencez par 0 pour un numéro local."
-            rules={[
-              { required: true, message: 'Le numéro est obligatoire' },
-              {
-                validator: (_, value) => {
-                  const n = normalizePhone(value, defaultCountryCode)
-                  return n.length >= 8 && n.length <= 15
-                    ? Promise.resolve()
-                    : Promise.reject(new Error('Numéro invalide'))
-                }
-              }
-            ]}
+        <div className="p-2">
+          <Form
+            form={form}
+            layout="vertical"
+            className="p-2"
+            requiredMark={false}
+            disabled={sending}
           >
-            <Input placeholder="+212 600 000 000" autoFocus onPressEnter={handleSend} />
-          </Form.Item>
-
-          <Form.Item label="Message (facultatif)" name="text">
-            <Input.TextArea rows={4} placeholder="Bonjour, veuillez trouver votre document." />
-          </Form.Item>
-
-          {fileName && (
-            <p className="mb-3 pb-3 truncate text-xs text-[#5F7052]">
-              Pièce jointe : {fileName}.pdf
-            </p>
-          )}
-
-          {sending && (
-            <div className="pb-3">
-              <div className="mb-3 flex items-center gap-2 rounded-md border border-[#D2DAC4] bg-[#F4F6F1] px-3 py-2 text-xs text-[#37402F]">
-                <LoadingOutlined />
-                <span>
-                  Envoi en cours… ne touchez ni au clavier ni à la souris pendant environ 10
-                  secondes.
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button size="small" onClick={closeWindow} disabled={sending}>
-              Annuler
-            </Button>
-            <Button
-              size="small"
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={handleSend}
-              loading={sending}
-              style={{ background: '#25D366' }}
+            <Form.Item
+              label="Numéro de téléphone"
+              name="phone"
+              extra="Avec indicatif pays, ou commencez par 0 pour un numéro local."
+              rules={[
+                { required: true, message: 'Le numéro est obligatoire' },
+                {
+                  validator: (_, value) => {
+                    const n = normalizePhone(value, defaultCountryCode)
+                    return n.length >= 8 && n.length <= 15
+                      ? Promise.resolve()
+                      : Promise.reject(new Error('Numéro invalide'))
+                  }
+                }
+              ]}
             >
-              Envoyer
-            </Button>
-          </div>
-        </Form>
+              <Input placeholder="+212 600 000 000" autoFocus onPressEnter={handleSend} />
+            </Form.Item>
+
+            <Form.Item label="Message (facultatif)" name="text">
+              <Input.TextArea rows={4} placeholder="Bonjour, veuillez trouver votre document." />
+            </Form.Item>
+
+            {fileName && (
+              <p className="mb-3 pb-3 truncate text-xs text-[#5F7052]">
+                Pièce jointe : {fileName}.pdf
+              </p>
+            )}
+
+            {sending && (
+              <div className="pb-3">
+                <div className="mb-3 flex items-center gap-2 rounded-md border border-[#D2DAC4] bg-[#F4F6F1] px-3 py-2 text-xs text-[#37402F]">
+                  <LoadingOutlined />
+                  <span>
+                    Envoi en cours… ne touchez ni au clavier ni à la souris pendant environ 10
+                    secondes.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button size="small" onClick={closeWindow} disabled={sending}>
+                Annuler
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                icon={<SendOutlined />}
+                onClick={handleSend}
+                loading={sending}
+                style={{ background: '#25D366' }}
+              >
+                Envoyer
+              </Button>
+            </div>
+          </Form>
+        </div>
       </DesktopWindow>
     </>
   )

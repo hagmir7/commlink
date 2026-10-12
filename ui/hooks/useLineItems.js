@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 let tempIdCounter = 1
+const EMPTY_LIST = []
 
 /**
- * Normalizes a raw article (from the API or from a manual entry) into
- * the shape the table expects, and guarantees a unique `key`.
+ * Normalizes a raw article into the shape the table expects.
+ *
+ * `key` rules:
+ *  - Lines coming from the server get a POSITION-based key (index + 1).
+ *    The backend identifies lines by position, and the key stays identical
+ *    across refetches, so row selection survives a refresh.
+ *  - Lines added locally (before the server responds) get a temporary key.
+ *    They are replaced by the position-based ones on the next refetch.
  */
-function toLineItem(article) {
+function toLineItem(article, index) {
+  const key = index !== undefined ? index + 1 : (article.key ?? `tmp-${tempIdCounter++}`)
+
   return {
-    key: article.id ?? article.key ?? `tmp-${tempIdCounter++}`,
+    key,
     id: article.id ?? null,
     articleRef: article.articleRef ?? article.reference ?? '',
     designation: article.designation ?? '',
@@ -25,26 +34,30 @@ function toLineItem(article) {
     conditionnement: article.conditionnement ?? false,
     profondeur: article.profondeur ?? false,
     nom: article.nom ?? false,
-    episseur: article.episseur ?? 0
+    episseur: article.episseur ?? 0,
+    // keep extra fields used elsewhere (e.g. the list of packagings)
+    conditionnements: article.conditionnements
   }
 }
 
-export default function useLineItems(initialItems = []) {
-  const [lineItems, setLineItemsState] = useState(() => initialItems.map(toLineItem))
+const fromServer = (items) => items.map((item, index) => toLineItem(item, index))
 
-  // `initialItems` often arrives empty on the first render (parent still
-  // fetching) and is replaced with the real array once the fetch resolves.
+export default function useLineItems(initialItems = EMPTY_LIST) {
+  const [lineItems, setLineItemsState] = useState(() => fromServer(initialItems))
+
+  // `initialItems` is often empty on the first render and replaced with the
+  // real array once the parent's fetch resolves (and on every refetch).
   const previousInitialItemsRef = useRef(initialItems)
   useEffect(() => {
     if (initialItems !== previousInitialItemsRef.current) {
       previousInitialItemsRef.current = initialItems
-      setLineItemsState(initialItems.map(toLineItem))
+      setLineItemsState(fromServer(initialItems))
     }
   }, [initialItems])
 
   const addArticles = useCallback((articleOrArticles) => {
     const incoming = Array.isArray(articleOrArticles) ? articleOrArticles : [articleOrArticles]
-    const newItems = incoming.map(toLineItem)
+    const newItems = incoming.map((a) => toLineItem(a))
     setLineItemsState((prev) => [...prev, ...newItems])
     return newItems
   }, [])
@@ -63,15 +76,13 @@ export default function useLineItems(initialItems = []) {
   }, [])
 
   /**
-   * Replace the whole list. Accepts either an array of already-shaped
-   * line items, or a function `(prev) => next` for functional updates.
-   * Any raw objects passed in are normalized through `toLineItem`.
+   * Replace the whole list. Accepts an array or a function `(prev) => next`.
+   * Items that already have a `key` are kept as is.
    */
   const setLineItems = useCallback((next) => {
     setLineItemsState((prev) => {
       const resolved = typeof next === 'function' ? next(prev) : next
       if (!Array.isArray(resolved)) return prev
-      // If the items already look normalized (have a `key`), keep them as is.
       return resolved.map((item) =>
         item && Object.prototype.hasOwnProperty.call(item, 'key') ? item : toLineItem(item)
       )
