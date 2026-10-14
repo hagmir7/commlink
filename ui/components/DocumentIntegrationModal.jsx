@@ -19,11 +19,10 @@ const columns = [
     render: (value) => value || '—'
   },
   {
-    title: 'Total HT',
-    dataIndex: 'totalHT',
-    key: 'totalHT',
-    align: 'right',
-    render: formatAmount
+    title: 'Expedition',
+    dataIndex: 'expedition',
+    key: 'expedition',
+    align: 'right'
   },
   {
     title: 'Total TTC',
@@ -44,7 +43,7 @@ const columns = [
 export default function DocumentIntegrationModal({
   open,
   onClose,
-  onIntegrated, // optional: called after a successful integration (e.g. to refetch the document)
+  onIntegrated,
   targetType, // e.g. "DocumentTypeVenteCommande"
   targetPiece, // e.g. "26BC000358"
   width = 900,
@@ -56,6 +55,7 @@ export default function DocumentIntegrationModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
+  console.log(documents)
 
   useEffect(() => {
     if (!open || !targetType || !targetPiece) return
