@@ -25,6 +25,9 @@ import WhatsappSendDocument from './WhatsappSendDocument'
 import { api, BASE_URL } from '../utils/api'
 import { DOCUMENT_TYPES } from '../constants/documentTypes'
 
+// 👇 IMPORT THE NEW MODAL HERE
+import DocumentInfoModal from './DocumentInfoModal'
+
 const menuItems = [
   { key: 'info-libre', label: 'Info libre' },
   { key: 'solvabilite', label: 'Solvabilité' }
@@ -137,6 +140,10 @@ export default function DocumentToolbar({ document, documentType, updateDocument
   const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [solvOpen, setSolvOpen] = useState(false)
+
+  // 👇 NEW STATE FOR THE MODAL
+  const [documentInfoModalOpen, setDocumentInfoModalOpen] = useState(false)
+
   const pdfUrl = `${BASE_URL}/documents/${documentType}/${document?.piece}/pdf`
 
   const documentTypeLabel = DOCUMENT_TYPES.find((t) => t.type === documentType)?.label || 'Document'
@@ -173,7 +180,15 @@ export default function DocumentToolbar({ document, documentType, updateDocument
         </Dropdown>
 
         <ToolbarButton icon={<BarChartOutlined />} label="Barèmes" disabled />
-        <ToolbarButton icon={<InfoCircleOutlined />} label="Informations" disabled />
+
+        {/* 👇 ENABLED THIS BUTTON TO TRIGGER THE NEW MODAL */}
+        <ToolbarButton
+          icon={<InfoCircleOutlined />}
+          label="Informations"
+          disabled={!document}
+          onClick={() => setDocumentInfoModalOpen(true)}
+        />
+
         <ToolbarButton icon={<CaretDownOutlined />} label="Pied" disabled />
 
         {/* Click = print · arrow = more options (WhatsApp) */}
@@ -224,6 +239,12 @@ export default function DocumentToolbar({ document, documentType, updateDocument
         open={solvOpen}
         onClose={() => setSolvOpen(false)}
         clientCode={document?.clientCode ?? document?.client?.code}
+      />
+
+      {/* 👇 NEW MODAL ADDED UNDER SOLVABILITE */}
+      <DocumentInfoModal
+        open={documentInfoModalOpen}
+        onClose={() => setDocumentInfoModalOpen(false)}
       />
 
       <PrintDocument
