@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Form, Input, Select, Checkbox, DatePicker, Button, message, Spin } from 'antd'
+import { Form, Input, Select, Checkbox, DatePicker, Button, message, Spin, Divider } from 'antd'
 import dayjs from 'dayjs'
 import DesktopWindow from './ui/DesktopWindow'
 import { api } from '../utils/api'
@@ -224,8 +224,8 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
       width={820}
       canClose={true}
     >
-      <div className="bg-[#F4F6F1] flex flex-col h-[70vh] text-xs">
-        <div className="flex-1 overflow-y-auto p-4 relative">
+      <div className="flex flex-col h-[70vh] text-xs">
+        <div className="flex-1 overflow-y-auto px-3 relative">
           {loading && (
             <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
               <Spin />
@@ -245,9 +245,7 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
           >
             {/* ================= SECTION 1 ================= */}
             <div className="mb-3">
-              <h3 className="text-[14px] font-bold text-[#37402F] border-b border-[#D2DAC4] pb-1">
-                Paramètres de saisie
-              </h3>
+              <Divider titlePlacement="start">Paramètres de saisie</Divider>
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Dépôt">
                   <Form.Item name="depot" className="mb-0">
@@ -318,9 +316,7 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
 
             {/* ================= SECTION 2 ================= */}
             <div className="mb-3 pt-2">
-              <h3 className="text-[14px] font-bold text-[#37402F] border-b border-[#D2DAC4] pb-1">
-                Livraison / Expédition
-              </h3>
+              <Divider titlePlacement="start">Livraison / Expédition</Divider>
               <div className="grid grid-cols-2 gap-x-6 pt-3">
                 <div className="col-span-2">
                   <FormRow label="Lieu de livraison">
@@ -372,9 +368,7 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
 
             {/* ================= SECTION 3 ================= */}
             <div className="mb-3">
-              <h3 className="text-[14px] font-bold text-[#37402F] border-b border-[#D2DAC4] pb-1">
-                Tarification et Comptabilisation
-              </h3>
+              <Divider titlePlacement="start">Tarification et Comptabilisation</Divider>
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Centrale d'achat">
                   <Form.Item name="centraleAchat" className="mb-0">
@@ -450,9 +444,7 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
 
             {/* ================= SECTION 4 ================= */}
             <div className="mb-3">
-              <h3 className="text-[14px] font-bold text-[#37402F] border-b border-[#D2DAC4] pb-1">
-                Abonnement
-              </h3>
+              <Divider titlePlacement="start">Abonnement</Divider>
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Début périodicité">
                   <Form.Item name="dateDebut" className="mb-0">
@@ -468,7 +460,7 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
             </div>
 
             {/* ================= SECTION 5 ================= */}
-            <div className="mb-2">
+            {/* <div className="mb-2">
               <h3 className="text-[14px] font-bold text-[#37402F] border-b border-[#D2DAC4] pb-1">
                 Données complémentaires
               </h3>
@@ -535,12 +527,12 @@ export default function DocumentInfoModal({ open, onClose, documentType, piece, 
                   </Form.Item>
                 </FormRow>
               </div>
-            </div>
+            </div> */}
           </Form>
         </div>
 
         {/* Sticky Footer */}
-        <div className="p-3 flex justify-end gap-2 shrink-0">
+        <div className="p-3 flex justify-end gap-2 shrink-0 desktop-window-titlebar border flex items-center justify-between border-t bg-gradient-to-t from-white to-gray-100 border-gray-300 select-none px-2 py-1 pt-2 border-b-0 border-r-0 border-l-0 active:cursor-grabbing">
           <Button
             type="primary"
             size="small"

@@ -130,7 +130,7 @@ export default function SolvabiliteCient({ open, onClose, clientCode = 'CL577' }
       )}
 
       {!loading && !error && data && (
-        <>
+        <div className="p-2">
           {/* -------- Informations sur le code risque -------- */}
           <div className="mb-4">
             <div className="mb-2 text-[14px] text-[#1e3a8a]">Informations sur le code risque</div>
@@ -207,7 +207,7 @@ export default function SolvabiliteCient({ open, onClose, clientCode = 'CL577' }
               Annuler
             </Button>
           </div>
-        </>
+        </div>
       )}
     </DesktopWindow>
   )
