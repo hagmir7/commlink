@@ -242,9 +242,17 @@ export default function DocumentToolbar({ document, documentType, updateDocument
       />
 
       {/* 👇 NEW MODAL ADDED UNDER SOLVABILITE */}
+      {/* Modal « Informations document » */}
       <DocumentInfoModal
         open={documentInfoModalOpen}
         onClose={() => setDocumentInfoModalOpen(false)}
+        documentType={documentType}
+        piece={document?.piece}
+        onSaved={(data) => {
+          console.log('Saved:', data)
+          // Rafraîchit le document côté parent (statut, totaux, etc.)
+          updateDocumentStatus?.()
+        }}
       />
 
       <PrintDocument

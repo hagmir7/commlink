@@ -1,23 +1,35 @@
-import React from 'react'
-import { Form, Input, Select, Checkbox, DatePicker, Button } from 'antd'
+import React, { useEffect, useState, useCallback } from 'react'
+import { Form, Input, Select, Checkbox, DatePicker, Button, message, Spin } from 'antd'
+import dayjs from 'dayjs'
 import DesktopWindow from './ui/DesktopWindow'
-// import DesktopWindow from './DesktopWindow'
+import { api } from '../utils/api'
 
-// Helper to perfectly align labels and inputs, matching the dense desktop look
+// ---------------------------------------------------------------------
+// Constantes de mapping (alignées sur les enums C#)
+// ---------------------------------------------------------------------
+const LANGUE_OPTIONS = [
+  { value: 'LangueTypeAucune', label: 'Aucune' },
+  { value: 'LangueTypeLangue1', label: 'Langue 1' },
+  { value: 'LangueTypeLangue2', label: 'Langue 2' }
+]
 
-// Tiers payeur => /clients/short
-// Langue => { LangueTypeAucune, LangueTypeLangue1, LangueTypeLangue2 }
-// Catégorie tarifaire
-// Catégorie comptable
-// Compte général
-// Depots => /depots
-// Devise => /devise
-// Mode d'expédition => /expidition
-// Type de colisage
-// Centrale d'achat => /clients/short
-// Représentant => /collaborateurs
-// Expeditions => /expeditions
+const STATUT_LABELS = {
+  DocumentStatutTypeSaisie: 'Saisi',
+  DocumentStatutTypeConfirme: 'Confirmé',
+  DocumentStatutTypeAPrepare: 'À préparer',
+  DocumentStatutTypeDevisPerdu: 'Devis perdu',
+  DocumentStatutTypeDevisArchive: 'Devis archivé'
+}
 
+const MODE_PAIEMENT_LABELS = {
+  DocumentConditionPaiementTiers: 'Condition de paiement du tiers',
+  DocumentConditionPaiementSaisie: 'Condition de paiement saisie',
+  DocumentConditionPaiementModele: 'Condition de paiement du modèle'
+}
+
+// ---------------------------------------------------------------------
+// Helper — aligne les labels et inputs
+// ---------------------------------------------------------------------
 const FormRow = ({ label, children }) => (
   <div className="flex items-start gap-2">
     <label className="w-32 pt-0.5 text-[13px] text-gray-700 shrink-0 whitespace-nowrap">
@@ -27,40 +39,207 @@ const FormRow = ({ label, children }) => (
   </div>
 )
 
-export default function DocumentInfoModal({ open, onClose }) {
+// ---------------------------------------------------------------------
+// Composant
+// ---------------------------------------------------------------------
+export default function DocumentInfoModal({ open, onClose, documentType, piece, onSaved }) {
   const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [docInfo, setDocInfo] = useState(null) // ← état du document courant
 
+  // Lookups
+  const [clients, setClients] = useState([])
+  const [categorieTarif, setCategorieTarif] = useState([])
+  const [depots, setDepots] = useState([])
+  const [devises, setDevises] = useState([])
+  const [expeditions, setExpeditions] = useState([])
+  const [collaborateurs, setCollaborateurs] = useState([])
+  const [unites, setUnites] = useState([])
+
+  // ---------------------------------------------------------------------
+  // Chargement des lookups
+  // ---------------------------------------------------------------------
+  const loadLookups = useCallback(async () => {
+    try {
+      const [clientsRes, catRes, depotsRes, devisesRes, expRes, collabRes, unitesRes] =
+        await Promise.all([
+          api.get('/clients/short'),
+          api.get('/categorie-tarif'),
+          api.get('/depots'),
+          api.get('/devise'),
+          api.get('/expeditions'),
+          api.get('/collaborateurs'),
+          api.get('/unite/short')
+        ])
+
+      setClients(clientsRes.data || [])
+      setCategorieTarif(catRes.data || [])
+      setDepots(depotsRes.data?.depots || depotsRes.data || [])
+      setDevises(devisesRes.data || [])
+      setExpeditions(expRes.data || [])
+      setCollaborateurs(collabRes.data || [])
+      setUnites(unitesRes.data || [])
+    } catch (err) {
+      console.error('Lookups load failed:', err)
+      message.error('Impossible de charger les listes de référence.')
+    }
+  }, [])
+
+  // ---------------------------------------------------------------------
+  // Chargement du document
+  // ---------------------------------------------------------------------
+  const loadDocument = useCallback(async () => {
+    if (!documentType || !piece) return
+    try {
+      setLoading(true)
+      const { data } = await api.get(`/documents/${documentType}/${piece}/info`)
+
+      if (!data.success) {
+        message.warning(data.message || 'Document introuvable.')
+        return
+      }
+
+      setDocInfo(data.document)
+      hydrateForm(data.document)
+    } catch (err) {
+      console.error('Load document info failed:', err)
+      message.error('Impossible de charger les informations du document.')
+    } finally {
+      setLoading(false)
+    }
+  }, [documentType, piece])
+
+  // ---------------------------------------------------------------------
+  // Mappe la réponse API → valeurs du formulaire
+  // ---------------------------------------------------------------------
+  const hydrateForm = (d) => {
+    form.setFieldsValue({
+      // Section 1
+      depot: d.depot ?? undefined,
+      contact: d.contact ?? undefined,
+      codeAffaire: d.codeAffaire ?? undefined,
+      langue: d.langue ?? 'LangueTypeAucune',
+      devise: d.deviseCodeISO ?? undefined,
+      cours: d.cours ?? 1,
+      faOrigine: d.faOrigine ?? undefined,
+
+      // Section 2
+      lieuLivraison: d.lieuLivraison ?? undefined,
+      modeExpedition: d.modeExpedition ?? undefined,
+      conditionLivraison: d.conditionLivraison ?? undefined,
+      nbCols: d.nbCols ?? 1,
+      typeColisage: d.typeColisage ?? undefined,
+
+      // Section 3
+      centraleAchat: d.centraleAchat ?? undefined,
+      categorieTarifaire: d.categorieTarifaire ?? undefined,
+      representant: d.representant ?? undefined,
+      categorieComptable: d.categorieComptable ?? undefined,
+      tiersPayeur: d.tiersPayeur ?? undefined,
+      compteGeneral: d.compteGeneral ?? undefined,
+
+      // Section 4 — dates
+      dateDebut: d.periodiciteDebut ? dayjs(d.periodiciteDebut) : null,
+      dateFin: d.periodiciteFin ? dayjs(d.periodiciteFin) : null,
+
+      // Section 5 — données complémentaires
+      entete1: d.entete1 ?? '',
+      type: d.entete2 ?? '',
+      entete3: d.entete3 ?? '',
+      modePaiement: d.modePaiement ?? '',
+      transaction: d.transaction ?? '',
+      regime: d.regime ?? '',
+      nbCopies: d.nbCopiesFa ?? 1,
+      periodicite: d.periodicite ?? undefined,
+      caisse: d.caisse ?? undefined,
+      caissier: d.caissier ?? undefined
+    })
+  }
+
+  // ---------------------------------------------------------------------
+  // Effets
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    if (!open) return
+    loadLookups()
+    loadDocument()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, documentType, piece])
+
+  // Reset à la fermeture
+  useEffect(() => {
+    if (!open) {
+      form.resetFields()
+      setDocInfo(null)
+    }
+  }, [open, form])
+
+  // ---------------------------------------------------------------------
+  // Soumission
+  // ---------------------------------------------------------------------
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields()
+      setSaving(true)
+
+      const payload = {
+        langue: values.langue,
+        categorieTarif: values.categorieTarifaire,
+        depot: values.depot,
+        deviseCodeISO: values.devise,
+        categorieCompta: values.categorieComptable,
+        withPrice: true
+      }
+
+      const { data } = await api.patch(`/documents/${documentType}/${piece}/entete`, payload)
+
+      if (data.success) {
+        message.success(data.message || 'Entête mise à jour.')
+        onSaved?.(data)
+        onClose?.()
+      } else {
+        message.warning(data.message || 'Aucune modification appliquée.')
+      }
+    } catch (err) {
+      if (err?.response?.data?.message) {
+        message.error(err.response.data.message)
+      } else if (!err?.errorFields) {
+        console.error('Save failed:', err)
+        message.error('Erreur lors de la mise à jour.')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendu
+  // ---------------------------------------------------------------------
   return (
     <DesktopWindow
       open={open}
       onClose={onClose}
-      title="Informations document"
+      title={`Informations document — ${piece ?? ''}`}
       width={820}
       canClose={true}
     >
       <div className="bg-[#F4F6F1] flex flex-col h-[70vh] text-xs">
-        {/* Scrollable Form Area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 relative">
+          {loading && (
+            <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+              <Spin />
+            </div>
+          )}
+
           <Form
             form={form}
             layout="vertical"
             size="small"
             initialValues={{
-              depot: 'STILEMOBILI',
-              devise: 'MAD',
+              langue: 'LangueTypeAucune',
               cours: '1',
-              langue: 'Aucune',
-              lieuLivraison: 'INTER COCINA 62000 Nador',
-              modeExpedition: 'EX-WORK',
               nbCols: '1',
-              typeColisage: 'Unité',
-              categorieTarifaire: 'Standard',
-              categorieComptable: 'VENTE AU MAROC',
-              tiersPayeur: 'CL022',
-              compteGeneral: '34210000',
-              entete1: '9 355.63',
-              transaction: '11',
-              regime: '21',
               nbCopies: '1'
             }}
           >
@@ -72,31 +251,50 @@ export default function DocumentInfoModal({ open, onClose }) {
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Dépôt">
                   <Form.Item name="depot" className="mb-0">
-                    <Select options={[{ value: 'STILEMOBILI', label: 'STILEMOBILI' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Sélectionner…"
+                      options={depots.map((d) => ({
+                        value: d.intitule,
+                        label: d.intitule
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Contact">
                   <Form.Item name="contact" className="mb-0">
-                    <Select placeholder="" />
+                    <Input />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Code Affaire">
                   <Form.Item name="codeAffaire" className="mb-0">
-                    <Select placeholder="" />
+                    <Input />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Langue">
                   <Form.Item name="langue" className="mb-0">
-                    <Select options={[{ value: 'Aucune', label: 'Aucune' }]} />
+                    <Select options={LANGUE_OPTIONS} />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Devise">
                   <Form.Item name="devise" className="mb-0">
-                    <Select disabled options={[{ value: 'MAD', label: 'MAD' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Sélectionner…"
+                      options={devises.map((d) => ({
+                        value: d.codeISO,
+                        label: `${d.codeISO} — ${d.intitule}`
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Cours">
                   <Form.Item name="cours" className="mb-0">
                     <Input />
@@ -127,35 +325,46 @@ export default function DocumentInfoModal({ open, onClose }) {
                 <div className="col-span-2">
                   <FormRow label="Lieu de livraison">
                     <Form.Item name="lieuLivraison" className="mb-0">
-                      <Select
-                        options={[
-                          { value: 'INTER COCINA 62000 Nador', label: 'INTER COCINA 62000 Nador' }
-                        ]}
-                      />
+                      <Input />
                     </Form.Item>
                   </FormRow>
                 </div>
 
                 <FormRow label="Mode d'expédition">
                   <Form.Item name="modeExpedition" className="mb-0">
-                    <Select options={[{ value: 'EX-WORK', label: 'EX-WORK' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Sélectionner…"
+                      options={expeditions.map((e) => ({ value: e, label: e }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Condition livraison">
                   <Form.Item name="conditionLivraison" className="mb-0">
-                    <Select placeholder="" />
+                    <Input />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Nb de cols">
                   <Form.Item name="nbCols" className="mb-0">
-                    {/* Replicating the focused blue border from the image */}
-                    <Input className="border-blue-500 hover:border-blue-500 focus:border-blue-500" />
+                    <Input />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Type de colisage">
                   <Form.Item name="typeColisage" className="mb-0">
-                    <Select disabled options={[{ value: 'Unité', label: 'Unité' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Sélectionner…"
+                      allowClear
+                      options={unites.map((u) => ({
+                        value: u.u_Intitule,
+                        label: u.u_Intitule
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
               </div>
@@ -169,34 +378,71 @@ export default function DocumentInfoModal({ open, onClose }) {
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Centrale d'achat">
                   <Form.Item name="centraleAchat" className="mb-0">
-                    <Select placeholder="" />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder=""
+                      allowClear
+                      options={clients.map((c) => ({
+                        value: c.code,
+                        label: `${c.code} — ${c.intitule}`
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Catégorie tarifaire">
                   <Form.Item name="categorieTarifaire" className="mb-0">
-                    <Select options={[{ value: 'Standard', label: 'Standard' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Sélectionner…"
+                      options={categorieTarif.map((c) => ({
+                        value: c.ct_Intitule,
+                        label: c.ct_Intitule
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Représentant">
                   <Form.Item name="representant" className="mb-0">
-                    <Select placeholder="" />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder=""
+                      allowClear
+                      options={collaborateurs.map((c) => ({
+                        value: c.nom,
+                        label: `${c.nom}${c.prenom ? ' ' + c.prenom : ''}`
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Catégorie comptable">
                   <Form.Item name="categorieComptable" className="mb-0">
-                    <Select options={[{ value: 'VENTE AU MAROC', label: 'VENTE AU MAROC' }]} />
+                    <Select placeholder="" allowClear />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Tiers payeur">
                   <Form.Item name="tiersPayeur" className="mb-0">
-                    <Select options={[{ value: 'CL022', label: 'CL022' }]} />
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder=""
+                      options={clients.map((c) => ({
+                        value: c.code,
+                        label: `${c.code} — ${c.intitule}`
+                      }))}
+                    />
                   </Form.Item>
                 </FormRow>
+
                 <FormRow label="Compte général">
                   <Form.Item name="compteGeneral" className="mb-0">
-                    <Select options={[{ value: '34210000', label: '34210000' }]} />
+                    <Input />
                   </Form.Item>
                 </FormRow>
               </div>
@@ -210,12 +456,12 @@ export default function DocumentInfoModal({ open, onClose }) {
               <div className="grid grid-cols-2 gap-x-6 pt-2">
                 <FormRow label="Début périodicité">
                   <Form.Item name="dateDebut" className="mb-0">
-                    <DatePicker className="w-full" />
+                    <DatePicker className="w-full" format="DD/MM/YYYY" />
                   </Form.Item>
                 </FormRow>
                 <FormRow label="Date fin périodicité">
                   <Form.Item name="dateFin" className="mb-0">
-                    <DatePicker className="w-full" />
+                    <DatePicker className="w-full" format="DD/MM/YYYY" />
                   </Form.Item>
                 </FormRow>
               </div>
@@ -245,7 +491,14 @@ export default function DocumentInfoModal({ open, onClose }) {
                 </FormRow>
                 <FormRow label="MODE DE PAIEMENT">
                   <Form.Item name="modePaiement" className="mb-0">
-                    <Input />
+                    <Select
+                      allowClear
+                      options={[
+                        { value: 'DocumentConditionPaiementTiers', label: 'Condition du tiers' },
+                        { value: 'DocumentConditionPaiementSaisie', label: 'Condition saisie' },
+                        { value: 'DocumentConditionPaiementModele', label: 'Condition du modèle' }
+                      ]}
+                    />
                   </Form.Item>
                 </FormRow>
 
@@ -267,18 +520,18 @@ export default function DocumentInfoModal({ open, onClose }) {
                 </FormRow>
                 <FormRow label="Périodicité">
                   <Form.Item name="periodicite" className="mb-0">
-                    <Select placeholder="" />
+                    <Input />
                   </Form.Item>
                 </FormRow>
 
                 <FormRow label="Caisse">
                   <Form.Item name="caisse" className="mb-0">
-                    <Select disabled placeholder="" />
+                    <Input disabled />
                   </Form.Item>
                 </FormRow>
                 <FormRow label="Caissier">
                   <Form.Item name="caissier" className="mb-0">
-                    <Select disabled placeholder="" />
+                    <Input disabled />
                   </Form.Item>
                 </FormRow>
               </div>
@@ -288,10 +541,17 @@ export default function DocumentInfoModal({ open, onClose }) {
 
         {/* Sticky Footer */}
         <div className="p-3 flex justify-end gap-2 shrink-0">
-          <Button type="primary" size="small" className="px-6 bg-blue-600">
+          <Button
+            type="primary"
+            size="small"
+            className="px-6 bg-blue-600"
+            onClick={handleOk}
+            loading={saving}
+            disabled={loading || docInfo?.isCloture}
+          >
             OK
           </Button>
-          <Button size="small" className="px-4" onClick={onClose}>
+          <Button size="small" className="px-4" onClick={onClose} disabled={saving}>
             Annuler
           </Button>
         </div>
