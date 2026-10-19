@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, message, Select } from 'antd'
+import { Button, message, Select, Typography } from 'antd'
 import { CaretDownOutlined, CaretUpOutlined, DownOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -11,6 +11,9 @@ import DocumentBarTitle from '../components/DocumentBarTitle'
 import DocumentToolbar from '../components/DocumentToolbar'
 import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
 import StockUnavailabilityModal from '../components/ui/StockUnavailabilityModal'
+import { dateFormat } from '../utils/date'
+
+const { Text } = Typography
 
 // Must match the status value used for "Envoyé" in your statuses list.
 const ENVOYER_STATUT_VALUE = 1
@@ -97,11 +100,11 @@ export default function CreateDocument() {
 
     try {
       const response = await api.patch(`documents/${documentType}/${piece}`, data)
+      window.document.getElementById('referenc').focus()
       return response.data
     } catch (error) {
       console.error('Error updating document:', error)
       message.error(error.response?.data?.message || 'Erreur lors de la modification du document')
-
       throw error
     }
   }
@@ -125,7 +128,7 @@ export default function CreateDocument() {
       }
 
       navigate(`/documents/${createdPiece}?documentType=${documentType}`)
-
+      window.document.getElementById('referenc').focus()
       return response.data
     } catch (error) {
       const errorData = error.response?.data
@@ -330,19 +333,26 @@ export default function CreateDocument() {
       </div>
 
       {/* Footer buttons */}
-      <div className="shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-[#f0f0f0]">
-        <Button
-          size="small"
-          type="primary"
-          onClick={() => window.api?.closeWindow()}
-          disabled={loadingDocument}
-        >
-          OK
-        </Button>
+      <div className="shrink-0 flex items-center justify-between bg-[#f0f0f0] px-3 py-2">
+        <div>
+          <Text>
+            Créé le {document?.date ? dateFormat(document?.date) : ''} par {document?.creatore}
+          </Text>
+        </div>
+        <div className="flex gap-2 ">
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => window.api?.closeWindow()}
+            disabled={loadingDocument}
+          >
+            OK
+          </Button>
 
-        <Button onClick={() => window.api?.closeWindow()} size="small">
-          Annuler
-        </Button>
+          <Button onClick={() => window.api?.closeWindow()} size="small">
+            Annuler
+          </Button>
+        </div>
       </div>
 
       <DocumentIntegrationModal

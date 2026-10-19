@@ -1,27 +1,49 @@
-import React from 'react'
+import { forwardRef } from 'react'
 import { Table, Tag } from 'antd'
 import dayjs from 'dayjs'
-import { DOCUMENT_TYPES, STATUT_COLORS } from '../constants/documentTypes'
-import { Lock, Printer, Settings } from 'lucide-react'
+import { STATUT_COLORS } from '../constants/documentTypes'
+import { Lock, Printer, Settings, FolderOpen, Copy, Trash2, RotateCw } from 'lucide-react'
 import { getStatut } from '../utils/helpers'
-
-function TypeBadge({ type }) {
-  const config = DOCUMENT_TYPES.find((d) => d.type === type)
-  if (!config) return null
-  return (
-    <span
-      className="text-white text-[10px] font-semibold px-1.5 py-0.5 rounded"
-      style={{ backgroundColor: config.color }}
-    >
-      {config.code}
-    </span>
-  )
-}
+import RightClickMenu from './ui/RightClickMenu'
 
 function formatMoney(value) {
   if (value === null || value === undefined) return ''
   return value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
+
+// Menu is built per row so items can be disabled depending on the document state
+function getMenuItems(row) {
+  return [
+    { key: 'open', label: 'Ouvrir', icon: <FolderOpen size={14} /> },
+    { key: 'print', label: 'Imprimer', icon: <Printer size={14} /> },
+    { key: 'copy', label: 'Copier le N° pièce', icon: <Copy size={14} /> },
+    { key: 'transfer', label: 'Transformer le document', icon: <RotateCw size={14} /> },
+    { type: 'divider' },
+    {
+      key: 'delete',
+      label: 'Supprimer',
+      icon: <Trash2 size={14} />,
+      danger: true,
+      disabled: !!row?.valide
+    }
+  ]
+}
+
+// Defined at module level so its identity is stable between renders.
+// Defining it inside DocumentsTable would remount every row on each render.
+const ContextRow = forwardRef(function ContextRow({ record, onContextAction, ...rest }, ref) {
+  // Header/placeholder rows have no record -> plain <tr>
+  if (!record) return <tr ref={ref} {...rest} />
+
+  return (
+    <RightClickMenu
+      menuItems={getMenuItems(record)}
+      onItemClick={(key) => onContextAction?.(key, record)}
+    >
+      <tr ref={ref} {...rest} />
+    </RightClickMenu>
+  )
+})
 
 export default function DocumentsTable({
   documents,
@@ -29,10 +51,10 @@ export default function DocumentsTable({
   loading,
   selectedRowKey,
   onSelectRow,
-  onOpenRow
+  onOpenRow,
+  onContextAction // (action: 'open' | 'print' | 'copy' | 'delete', row) => void
 }) {
   const columns = [
-    // { title: 'Type', key: 'type', width: 50, render: () => <TypeBadge type={documentType} /> },
     {
       title: 'Etat',
       key: 'etat',
@@ -100,8 +122,7 @@ export default function DocumentsTable({
     { title: 'Intitulé client', dataIndex: 'clientIntitule', key: 'clientIntitule', width: 220 }
   ]
 
-  // "piece" alone isn't guaranteed unique across types/domaines — combine with type to avoid
-  // React's "two children with the same key" warning and mismatched row identity.
+  // "piece" alone isn't guaranteed unique across types/domaines — combine with type.
   const rowKey = (row) => `${row.type}-${row.piece}`
 
   return (
@@ -113,9 +134,13 @@ export default function DocumentsTable({
       dataSource={documents}
       pagination={false}
       scroll={{ x: 'max-content', y: 'calc(115vh - 260px)' }}
+      components={{ body: { row: ContextRow } }}
       onRow={(row) => ({
+        record: row, // consumed by ContextRow, never reaches the DOM
+        onContextAction, // consumed by ContextRow
         onClick: () => onSelectRow(row.piece),
         onDoubleClick: () => onOpenRow(row),
+        onContextMenu: () => onSelectRow(row.piece), // highlight the row on right-click
         className: row.piece === selectedRowKey ? 'selected-row cursor-pointer' : 'cursor-pointer'
       })}
       className="

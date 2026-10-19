@@ -1,6 +1,12 @@
 import { Badge, Button, Dropdown, Tag } from 'antd'
-import { BankOutlined, DownOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons'
-import { useCallback } from 'react'
+import {
+  BankOutlined,
+  DownOutlined,
+  ExclamationCircleOutlined,
+  LogoutOutlined,
+  UserOutlined
+} from '@ant-design/icons'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { uppercaseFirst } from '../utils/helpers'
@@ -16,6 +22,7 @@ export default function DocumentsActionBar({
   const navigate = useNavigate()
 
   const { user } = useAuth()
+  const [appVersion, setAppVersion] = useState('')
 
   const handleLogout = useCallback(async () => {
     localStorage.removeItem('authToken')
@@ -31,6 +38,12 @@ export default function DocumentsActionBar({
       console.error('Logout failed:', error)
     }
   }, [navigate])
+
+  useEffect(() => {
+    if (window.api?.getVersion) {
+      window.api.getVersion().then(setAppVersion)
+    }
+  }, [])
 
   return (
     <div className="flex items-center justify-between px-3 py-2 border-t border-gray-300 bg-[#f0f0f0]">
@@ -59,7 +72,10 @@ export default function DocumentsActionBar({
             <UserOutlined /> {uppercaseFirst(user?.login)} |
           </div>
           <div>
-            <BankOutlined /> {uppercaseFirst(user?.company)}
+            <BankOutlined /> {uppercaseFirst(user?.company)} |
+          </div>
+          <div>
+            <ExclamationCircleOutlined /> {appVersion}
           </div>
         </div>
       </div>

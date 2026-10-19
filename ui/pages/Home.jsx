@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Modal, message } from 'antd'
 import { DEFAULT_DOCUMENT_TYPE } from '../constants/documentTypes'
 import DocumentsActionBar from '../components/DocumentsActionBar'
 import DocumentsSidebar from '../components/DocumentsSidebar'
 import DocumentsToolbar from '../components/DocumentsToolbar'
 import DocumentsTable from '../components/DocumentsTable'
-import { api } from '../utils/api'
+import { api, BASE_URL } from '../utils/api'
 import { handleShow } from '../utils/helpers'
 import SelectDocumentTypeModal from '../components/NewDocumentModal'
 import { useConfirm } from '../components/ui/ConfirmWindow'
-import { message } from 'antd'
+import PrintDocument from '../components/PrintDocument'
+import TransferDocument from '../components/TransferDocument'
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -37,6 +39,15 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [clientOptions, setClientOptions] = useState([])
+  const [printOpen, setPrintOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
+
+  // The currently selected document (used by the Print / Transfer modals).
+  // NOTE: previously the modal was passed `document`, which resolved to the
+  // global DOM `document` object -> `document.piece` was `undefined`.
+  const selectedDocument = documents.find((d) => d.piece === selectedRowKey) ?? null
+
+  const pdfUrl = `${BASE_URL}/documents/${documentType.type}/${selectedRowKey}/pdf`
 
   // --- fetch clients once on mount -------------------------------------
   useEffect(() => {
@@ -191,10 +202,12 @@ export default function Home() {
   }
 
   // --- STEP 1: delete confirmation ------------------------------------
-  const showDeleteConfirm = () => {
-    if (!selectedRowKey) return
-
-    const key = selectedRowKey
+  // NOTE: accepts an optional explicit key so the right-click context menu
+  // can delete the row it was opened on, not whichever row happens to be
+  // selected. Falls back to `selectedRowKey` (action bar path).
+  const showDeleteConfirm = (explicitKey) => {
+    const key = explicitKey ?? selectedRowKey
+    if (!key) return
 
     confirm({
       title: 'Supprimer ce document ?',
@@ -258,6 +271,32 @@ export default function Home() {
     setSelectedRowKey(null)
   }
 
+  const handleContextAction = (action, row) => {
+    switch (action) {
+      case 'open':
+        return handleOpenRow(row)
+
+      case 'print':
+        // make sure the modal prints the row that was right-clicked
+        setSelectedRowKey(row.piece)
+        return setPrintOpen(true)
+
+      case 'transfer':
+        // make sure the modal transfers the row that was right-clicked
+        setSelectedRowKey(row.piece)
+        return setTransferOpen(true)
+
+      case 'copy':
+        return navigator.clipboard
+          .writeText(String(row.piece))
+          .then(() => message.success('N° pièce copié'))
+          .catch(() => message.error('Impossible de copier'))
+
+      case 'delete':
+        return showDeleteConfirm(row.piece)
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-white">
       <div className="flex flex-1">
@@ -285,6 +324,7 @@ export default function Home() {
               selectedRowKey={selectedRowKey}
               onSelectRow={setSelectedRowKey}
               onOpenRow={handleOpenRow}
+              onContextAction={handleContextAction}
               sortOrder={sortOrder}
               onSortChange={handleSortChange}
               pagination={{
@@ -306,13 +346,38 @@ export default function Home() {
           if (row) handleOpenRow(row)
         }}
         onNouveau={() => setIsSelectTypeOpen(true)}
-        onDelete={showDeleteConfirm}
+        onDelete={() => showDeleteConfirm(selectedRowKey)}
         onClose={() => navigate(-1)}
       />
 
       <SelectDocumentTypeModal
         open={isSelectTypeOpen}
         onCancel={() => setIsSelectTypeOpen(false)}
+      />
+
+      {/* Transfer modal — needs the actual document object (not `document`) */}
+      <Modal
+        open={transferOpen}
+        onCancel={() => setTransferOpen(false)}
+        footer={null}
+        destroyOnClose
+        title="Transférer le document"
+      >
+        {selectedDocument && (
+          <TransferDocument
+            currentDocumentType={documentType.type}
+            document={selectedDocument}
+            setOpen={setTransferOpen}
+            onTransferred={handleRefresh}
+          />
+        )}
+      </Modal>
+
+      <PrintDocument
+        open={printOpen}
+        onCancel={() => setPrintOpen(false)}
+        pdfUrl={pdfUrl}
+        documentName={selectedDocument?.piece}
       />
 
       {confirmHolder}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Select } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { LabeledField, FieldError } from './FormFields'
+import { api } from '../utils/api'
 
 const norm = (s = '') => {
   const v = s.trim().toUpperCase()
@@ -12,7 +13,7 @@ const code = (o) => `${o?.value ?? ''}`.toUpperCase().trim()
 const focusDateLivraison = () =>
   setTimeout(() => {
     const el = document.getElementById('dateLivraison')
-    el.click()
+    el?.click()
   }, 10)
 
 const S = ({ f, ...props }) => (
@@ -27,10 +28,37 @@ const S = ({ f, ...props }) => (
 
 export default function ClientColumn({ client, statut, affaire, expedition }) {
   const timer = useRef(null)
+  const requestId = useRef(0)
   useEffect(() => () => clearTimeout(timer.current), [])
+
+  // Fetch the client's main expedition and set it on the form
+  const loadExpedition = async (clientCode) => {
+    const current = ++requestId.current // ignore stale responses
+    if (!clientCode) {
+      expedition.onChange?.(undefined)
+      return
+    }
+    try {
+      const { data } = await api.get(
+        `/clients/${encodeURIComponent(clientCode)}/expedition-principale`
+      )
+      if (current !== requestId.current) return
+      if (data?.success && data?.hasExpedition && data?.expedition) {
+        // Select value = expedition name; adjust if your options use another key
+        expedition.onChange?.(data.expedition)
+      } else {
+        expedition.onChange?.(undefined)
+      }
+    } catch (err) {
+      if (current !== requestId.current) return
+      console.error('Failed to load main expedition', err)
+      expedition.onChange?.(undefined)
+    }
+  }
 
   const onChange = (value, option) => {
     client.onChange?.(value, option)
+    loadExpedition(value)
     focusDateLivraison()
   }
 
