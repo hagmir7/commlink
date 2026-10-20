@@ -55,7 +55,6 @@ export default function DocumentIntegrationModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
-  console.log(documents)
 
   useEffect(() => {
     if (!open || !targetType || !targetPiece) return

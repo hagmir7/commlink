@@ -366,7 +366,7 @@ export default function Home() {
         {selectedDocument && (
           <TransferDocument
             currentDocumentType={documentType.type}
-            document={selectedDocument}
+            sourceDoc={selectedDocument}
             setOpen={setTransferOpen}
             onTransferred={handleRefresh}
           />

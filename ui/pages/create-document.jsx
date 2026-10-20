@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Button, message, Select, Typography } from 'antd'
 import { CaretDownOutlined, CaretUpOutlined, DownOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -12,11 +12,16 @@ import DocumentToolbar from '../components/DocumentToolbar'
 import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
 import StockUnavailabilityModal from '../components/ui/StockUnavailabilityModal'
 import { dateFormat } from '../utils/date'
+import DocumentArticleStock from '../components/DocumentArticleStock'
 
 const { Text } = Typography
 
 // Must match the status value used for "Envoyé" in your statuses list.
 const ENVOYER_STATUT_VALUE = 1
+
+// Adapt to the real field holding the article reference in a line object.
+const getArticleRef = (line) =>
+  line?.articleRef ?? line?.refArticle ?? line?.reference ?? line?.ref ?? null
 
 export default function CreateDocument() {
   const { piece } = useParams()
@@ -27,7 +32,7 @@ export default function CreateDocument() {
 
   const [document, setDocument] = useState(null)
   const [lineItems, setLineItems] = useState([])
-  const [hasSelection, setHasSelection] = useState(false)
+  const [selectedRows, setSelectedRows] = useState([])
   const [loadingDocument, setLoadingDocument] = useState(false)
   const [loadingMovement, setLoadingMovement] = useState(false)
   const [integrationOpen, setIntegrationOpen] = useState(false)
@@ -42,6 +47,11 @@ export default function CreateDocument() {
 
   const linesRef = useRef(null)
   const headerRef = useRef(null)
+
+  // Derived selection state
+  const hasSelection = selectedRows.length > 0
+  const selectedLine = selectedRows.length === 1 ? selectedRows[0] : null
+  const selectedArticleRef = getArticleRef(selectedLine)
 
   /**
    * Fetch document.
@@ -81,6 +91,8 @@ export default function CreateDocument() {
    * Load document when piece or documentType changes
    */
   useEffect(() => {
+    setSelectedRows([])
+
     if (piece && documentType) {
       fetchDocument(piece)
     } else {
@@ -166,11 +178,13 @@ export default function CreateDocument() {
   }
 
   /**
-   * Handle line selection
+   * Handle line selection.
+   * Stable callback — DocumentLines can safely put it in an effect dependency
+   * list without triggering an update loop.
    */
-  const handleSelectionChange = (keys) => {
-    setHasSelection(keys.length > 0)
-  }
+  const handleSelectionChange = useCallback((_keys, rows) => {
+    setSelectedRows(rows ?? [])
+  }, [])
 
   /**
    * Handle movement loading
@@ -192,11 +206,9 @@ export default function CreateDocument() {
    * Handle an entry picked from the "Actions" dropdown.
    */
   const handleAction = async (value) => {
-    const [action, arg] = value.split(':')
-
-    switch (action) {
+    switch (value) {
       case 'transform':
-        await linesRef.current?.transform(arg)
+        await linesRef.current?.transform()
         break
       case 'integrate':
         setIntegrationOpen(true)
@@ -257,13 +269,11 @@ export default function CreateDocument() {
     >
       {/* Title bar */}
       <DocumentBarTitle piece={piece} document={document} documentType={documentType} />
-
       <DocumentToolbar
         documentType={documentType}
         document={document}
         updateDocumentStatus={handleUpdateStatusToEnvoyer}
       />
-
       {/* Document header */}
       <DocumentHeaderForm
         ref={headerRef}
@@ -273,7 +283,6 @@ export default function CreateDocument() {
         loading={loadingDocument}
         onValidate={handleValidate}
       />
-
       {/* Document lines */}
       <DocumentLines
         ref={linesRef}
@@ -297,15 +306,11 @@ export default function CreateDocument() {
           options={[
             {
               label: 'Transformer',
-              options: [
-                { value: 'transform:Commande', label: 'Bon de Commande' },
-                { value: 'transform:Livraison', label: 'Bon de Livraison' },
-                { value: 'transform:Facture', label: 'Facture' }
-              ]
+              options: [{ value: 'transform', label: 'Transformer le(s) document(s)' }]
             },
             {
               label: 'Intégrer',
-              options: [{ value: 'integrate:open', label: 'Integrer des documents...' }]
+              options: [{ value: 'integrate', label: 'Integrer des documents...' }]
             }
           ]}
         />
@@ -327,9 +332,13 @@ export default function CreateDocument() {
         />
       </div>
 
-      {/* Totals */}
+      {/* Article stock (one selected line) or totals (otherwise) */}
       <div className="p-2">
-        <DocumentTotals document={document} />
+        {selectedArticleRef ? (
+          <DocumentArticleStock key={selectedArticleRef} refArticle={selectedArticleRef} />
+        ) : (
+          <DocumentTotals document={document} />
+        )}
       </div>
 
       {/* Footer buttons */}
@@ -354,7 +363,6 @@ export default function CreateDocument() {
           </Button>
         </div>
       </div>
-
       <DocumentIntegrationModal
         open={integrationOpen}
         onClose={() => setIntegrationOpen(false)}
@@ -363,7 +371,6 @@ export default function CreateDocument() {
         onIntegrated={integrationComplete}
         document={document}
       />
-
       {/* key remounts the modal for each item so its local state resets */}
       <StockUnavailabilityModal
         key={unavailabilityIndex}

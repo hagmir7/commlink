@@ -23,7 +23,6 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
   const articleRef = unvilableData?.articleRef
   const quantiteDemandee = toNumber(unvilableData?.quantity)
 
-  console.log(unvilableData)
   // Data from the API
   const [article, setArticle] = useState(null)
   const [stocks, setStocks] = useState([])

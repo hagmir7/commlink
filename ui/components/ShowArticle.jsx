@@ -6,9 +6,12 @@ import BackButton from './BackButton'
 
 const SUIVI_STOCK = { 0: 'Aucun', 1: 'CMUP' } // add other Sage values if needed
 
-const fmt = (v) => (v === null || v === undefined ? '' : String(v))
+const isEmpty = (v) =>
+  v === null || v === undefined || (typeof v === 'string' && v.trim().toUpperCase() === 'NULL')
+
+const fmt = (v) => (isEmpty(v) ? '' : String(v))
 const fmtMoney = (v) =>
-  v == null || v === ''
+  isEmpty(v) || v === ''
     ? ''
     : new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: 2,

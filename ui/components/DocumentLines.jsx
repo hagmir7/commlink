@@ -20,6 +20,8 @@ import ArticleFilterRow from './ArticleFilterRow'
 import ArticleSearchModal from './ArticleSearchModal'
 import ColumnResizeHandle from './ColumnResizeHandle'
 import { api } from '../utils/api'
+import DesktopWindow from './ui/DesktopWindow'
+import TransferDocument from './TransferDocument'
 
 const renderCell = (value) => {
   if (value === 0 || value === '' || value === null || value === undefined) {
@@ -298,6 +300,7 @@ const DocumentLines = forwardRef(function DocumentLines(
   {
     lineItems: initialLineItems,
     piece,
+    souche, // optional: souche of the current document (falls back to 'souche_a' in TransferDocument)
     documentType,
     onSelectionChange,
     onUpdate,
@@ -325,13 +328,24 @@ const DocumentLines = forwardRef(function DocumentLines(
   const [conditionnementMeta, setConditionnementMeta] = useState({})
 
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
+  // Positions (1-based) of the lines to transfer.
+  const [selectedLignes, setSelectedLignes] = useState([])
 
   // Last row clicked, used as the anchor for Shift+click range selection.
   const lastClickedRef = useRef(null)
 
+  const selectedRows = useMemo(() => {
+    const ids = new Set(checkedKeys)
+    return lineItems.filter((li) => ids.has(rowId(li)))
+  }, [checkedKeys, lineItems])
+
   const isEditing = hasKey(editingKey)
   // Several lines selected: the filter row switches to bulk mode.
   const isMulti = checkedKeys.length > 1
+
+  // Source document passed to TransferDocument (never use the global `document`).
+  const sourceDoc = useMemo(() => ({ piece, souche }), [piece, souche])
 
   // Only the visible columns, in the user's order.
   const visibleColumnDefs = useMemo(
@@ -360,8 +374,8 @@ const DocumentLines = forwardRef(function DocumentLines(
   }, [])
 
   useEffect(() => {
-    onSelectionChange?.(checkedKeys)
-  }, [checkedKeys, onSelectionChange])
+    onSelectionChange?.(checkedKeys, selectedRows)
+  }, [checkedKeys, selectedRows, onSelectionChange])
 
   // Persist the column layout.
   useEffect(() => {
@@ -746,13 +760,18 @@ const DocumentLines = forwardRef(function DocumentLines(
     }
   }, [checkedKeys, lineItems, documentType, piece, removeLineItems, onUpdate])
 
+  /**
+   * Opens the transfer dialog with the positions of the selected lines.
+   * The actual transfer is done by <TransferDocument />.
+   */
   const handleTransform = useCallback(
     async (target) => {
       if (checkedKeys.length === 0) return
-      if (!target) {
-        message.error('Veuillez préciser la cible de transformation')
-        return
-      }
+
+      // if (!target) {
+      //   message.error('Veuillez préciser la cible de transformation')
+      //   return
+      // }
 
       const positions = checkedKeys
         .map((id) => {
@@ -761,28 +780,19 @@ const DocumentLines = forwardRef(function DocumentLines(
         })
         .filter((pos) => pos !== null)
 
-      try {
-        await api.post(`documents/${documentType}/${piece}/transform/lines`, {
-          positions,
-          target
-        })
-
-        setCheckedKeys([])
-        message.success(
-          positions.length > 1 ? `${positions.length} lignes transformées` : 'Ligne transformée'
-        )
-        await onUpdate?.()
-      } catch (error) {
-        console.error(error?.response?.data || error)
-        message.error(
-          error?.response?.data?.message ||
-            error?.response?.data?.detail ||
-            'Erreur lors de la transformation des lignes'
-        )
-      }
+      setSelectedLignes(positions)
+      setTransferOpen(true)
     },
-    [checkedKeys, lineItems, documentType, piece, onUpdate]
+    [checkedKeys, lineItems]
   )
+
+  /** Called by TransferDocument once the lines have been transferred. */
+  const handleTransferred = useCallback(async () => {
+    setCheckedKeys([])
+    lastClickedRef.current = null
+    resetForm()
+    await onUpdate?.()
+  }, [onUpdate])
 
   const buildMovePayload = useCallback(
     () =>
@@ -1020,6 +1030,22 @@ const DocumentLines = forwardRef(function DocumentLines(
         onCancel={() => setSearchModal({ open: false, query: '' })}
         onConfirm={handleModalConfirm}
       />
+
+      <DesktopWindow
+        open={transferOpen}
+        title="Transformer le document"
+        onClose={() => setTransferOpen(false)}
+        width={400}
+        height={450}
+      >
+        <TransferDocument
+          currentDocumentType={documentType}
+          sourceDoc={sourceDoc}
+          setOpen={setTransferOpen}
+          lignes={selectedLignes}
+          onTransferred={handleTransferred}
+        />
+      </DesktopWindow>
     </>
   )
 })

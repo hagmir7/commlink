@@ -222,7 +222,7 @@ export default function DocumentToolbar({ document, documentType, updateDocument
       >
         <TransferDocument
           currentDocumentType={documentType}
-          document={document}
+          sourceDoc={document}
           setOpen={setTransferOpen}
           onTransferred={updateDocumentStatus}
         />

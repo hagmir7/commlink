@@ -31,8 +31,9 @@ const transformOptions = [
 
 export default function TransferDocument({
   currentDocumentType,
-  document,
+  sourceDoc, // renamed from `document` (it collided with the global window.document)
   setOpen,
+  lignes = [],
   onTransferred
 }) {
   const navigate = useNavigate()
@@ -55,7 +56,7 @@ export default function TransferDocument({
 
   const [documentType, setDocumentType] = useState(defaultType)
   const [statut, setStatut] = useState('saisi')
-  const [souche, setSouche] = useState(document?.souche ?? 'souche_a')
+  const [souche, setSouche] = useState(sourceDoc?.souche ?? 'souche_a')
   const [nextPiece, setNextPiece] = useState('')
   const [statutOptions, setStatutOptions] = useState([])
   const [date, setDate] = useState(TODAY)
@@ -78,6 +79,11 @@ export default function TransferDocument({
   useEffect(() => {
     setDocumentType(defaultType)
   }, [defaultType])
+
+  // Re-sync souche when the source document changes
+  useEffect(() => {
+    if (sourceDoc?.souche) setSouche(sourceDoc.souche)
+  }, [sourceDoc?.souche])
 
   const toggleOption = (key) => {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -113,7 +119,7 @@ export default function TransferDocument({
     const getNextPiece = async () => {
       try {
         const response = await api.get(
-          `documents/${documentType}/next-piece?souche=${document?.souche ?? ''}`
+          `documents/${documentType}/next-piece?souche=${sourceDoc?.souche ?? ''}`
         )
         if (!cancelled) setNextPiece(response?.data?.piece ?? '')
       } catch (error) {
@@ -125,7 +131,7 @@ export default function TransferDocument({
     return () => {
       cancelled = true
     }
-  }, [documentType, document?.souche])
+  }, [documentType, sourceDoc?.souche])
 
   // Currently selected entry (has `target`)
   const selectedEntry = useMemo(
@@ -136,11 +142,18 @@ export default function TransferDocument({
   const canTransform = allowedTypes.length > 0 && Boolean(selectedEntry?.target) && !submitting
 
   // ---------------------------------------------------------------------
-  // Submit transformation — target goes in the URL query string
+  // Submit transformation
+  //  - lignes selected  -> transfer ONLY those lines, no navigation
+  //  - no lignes        -> transfer the whole document, then navigate
   // ---------------------------------------------------------------------
   const transfer = async () => {
     if (!selectedEntry?.target) {
       message.error('Type de document cible invalide.')
+      return
+    }
+
+    if (!sourceDoc?.piece) {
+      message.error('Document source introuvable.')
       return
     }
 
@@ -155,8 +168,39 @@ export default function TransferDocument({
     try {
       setSubmitting(true)
 
+      // ------------------------------------------------------------------
+      // Lines selected: transfer only those lines, stay on the current page
+      // ------------------------------------------------------------------
+      if (lignes.length > 0) {
+        // `lignes` is an array of 1-based positions (numbers) from DocumentLines
+        const positions = lignes.map((l) => (typeof l === 'object' ? (l.position ?? l.id) : l))
+
+        const response = await api.post(
+          `documents/${currentDocumentType}/${sourceDoc.piece}/transform/lines`,
+          { positions, target: selectedEntry.target, ...payload }
+        )
+
+        const missing = response?.data?.nonTransferred ?? []
+        if (missing.length > 0) {
+          message.warning(`${missing.length} ligne(s) non transférée(s).`)
+          queue.start(missing)
+          onTransferred?.()
+          return
+        }
+
+        message.success(
+          lignes.length > 1 ? `${lignes.length} lignes transformées` : 'Ligne transformée'
+        )
+        onTransferred?.()
+        setOpen(false)
+        return
+      }
+
+      // ------------------------------------------------------------------
+      // No lines selected: transfer the whole document and navigate
+      // ------------------------------------------------------------------
       const response = await api.post(
-        `documents/${currentDocumentType}/${document?.piece}/transform?target=${selectedEntry.target}`,
+        `documents/${currentDocumentType}/${sourceDoc.piece}/transform?target=${selectedEntry.target}`,
         payload
       )
 
@@ -184,9 +228,16 @@ export default function TransferDocument({
     } catch (error) {
       const data = error?.response?.data
       console.error(data || error)
-      message.error(data?.message || data?.title || 'Erreur lors de la transformation.')
+      message.error(
+        data?.message ||
+          data?.detail ||
+          data?.title ||
+          (lignes.length > 0
+            ? 'Erreur lors de la transformation des lignes'
+            : 'Erreur lors de la transformation.')
+      )
 
-      // No document was created: show every line, stay on this dialog
+      // Nothing was created: show every line, stay on this dialog
       queue.start(data?.nonTransferred)
     } finally {
       setSubmitting(false)
