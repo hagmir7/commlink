@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Alert, Input, Menu, Select, Spin, Tabs } from 'antd'
+import { Alert, Divider, Input, Menu, Select, Spin, Tabs } from 'antd'
 import { getArticle } from '../api/article'
 import BackButton from './BackButton'
 
@@ -17,17 +17,6 @@ const fmtMoney = (v) =>
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }).format(Number(v))
-
-/* ---------- building blocks ---------- */
-
-function SectionTitle({ children }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <h3 className="m-0 text-lg font-normal text-gray-700">{children}</h3>
-      <div className="flex-1 border-0 border-b border-solid border-gray-300" />
-    </div>
-  )
-}
 
 function Label({ children, disabled }) {
   return (
@@ -107,7 +96,7 @@ const Grid2 = ({ children, label = 120 }) => (
 )
 
 const Panel = ({ children }) => (
-  <div className="bg-white border border-solid border-gray-300 p-5">{children}</div>
+  <div className="bg-white border border-solid border-gray-300 px-5 pb-4">{children}</div>
 )
 
 /* ---------- tab contents ---------- */
@@ -117,7 +106,7 @@ function IdentificationTab({ a }) {
     <Panel className="border-t-0">
       <div className="flex flex-col gap-8">
         <section>
-          <SectionTitle>Identification</SectionTitle>
+          <Divider titlePlacement="start">Identification</Divider>
           <Grid4>
             <Row label="Référence" value={fmt(a.ref)} disabled />
             <Row label="Type" value={fmt(a.type) || 'Standard'} disabled combo />
@@ -138,7 +127,7 @@ function IdentificationTab({ a }) {
         </section>
 
         <section>
-          <SectionTitle>Tarif</SectionTitle>
+          <Divider titlePlacement="start">Tarif</Divider>
           <Grid4>
             <Row label="Prix d'achat" value={fmtMoney(a.prixAchat)} />
             <Row label="Dernier Prix d'achat" value={fmtMoney(a.dernierPrixAchat)} />
@@ -160,7 +149,7 @@ function ChampsLibresTab({ a }) {
 
   return (
     <Panel>
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-4">
         <Menu
           mode="inline"
           selectedKeys={[side]}
@@ -178,7 +167,7 @@ function ChampsLibresTab({ a }) {
         <div className="flex-1 min-w-0 border border-solid border-gray-300 p-4">
           {side === 'infos' ? (
             <>
-              <SectionTitle>Informations libres</SectionTitle>
+              <Divider titlePlacement="start">Informations libres</Divider>
               <Grid2 label={110}>
                 <Row label="Nom" value={fmt(a.nom)} />
                 <Row label="Hauteur" value={fmt(a.hauteur)} />
@@ -203,7 +192,7 @@ function ChampsLibresTab({ a }) {
 function ParametresTab({ a }) {
   return (
     <Panel>
-      <SectionTitle>Paramètres</SectionTitle>
+      <Divider titlePlacement="start">Paramètres</Divider>
       <Grid4>
         <Row label="Code barre" value={fmt(a.codeBarre)} />
         <Row label="Code EDI" value={fmt(a.ediCode)} />

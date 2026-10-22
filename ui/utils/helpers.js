@@ -177,7 +177,6 @@ export function getAvailableStatuts(documentType) {
 
 export function getStatut(documentType, statusValue) {
   const statuts = getAvailableStatuts(documentType)
-
   return statuts.find((statut) => statut.value === Number(statusValue)) ?? null
 }
 

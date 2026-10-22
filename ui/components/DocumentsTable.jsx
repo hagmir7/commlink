@@ -2,7 +2,16 @@ import { forwardRef } from 'react'
 import { Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { STATUT_COLORS } from '../constants/documentTypes'
-import { Lock, Printer, Settings, FolderOpen, Copy, Trash2, RotateCw } from 'lucide-react'
+import {
+  Lock,
+  Printer,
+  Settings,
+  FolderOpen,
+  Copy,
+  CopyPlus,
+  Trash2,
+  RotateCw
+} from 'lucide-react'
 import { getStatut } from '../utils/helpers'
 import RightClickMenu from './ui/RightClickMenu'
 
@@ -17,6 +26,7 @@ function getMenuItems(row) {
     { key: 'open', label: 'Ouvrir', icon: <FolderOpen size={14} /> },
     { key: 'print', label: 'Imprimer', icon: <Printer size={14} /> },
     { key: 'copy', label: 'Copier le N° pièce', icon: <Copy size={14} /> },
+    { key: 'duplicate', label: 'Dupliquer le document', icon: <CopyPlus size={14} /> },
     { key: 'transfer', label: 'Transformer le document', icon: <RotateCw size={14} /> },
     { type: 'divider' },
     {
@@ -52,7 +62,7 @@ export default function DocumentsTable({
   selectedRowKey,
   onSelectRow,
   onOpenRow,
-  onContextAction // (action: 'open' | 'print' | 'copy' | 'delete', row) => void
+  onContextAction // (action: 'open' | 'print' | 'copy' | 'duplicate' | 'transfer' | 'delete', row) => void
 }) {
   const columns = [
     {
@@ -65,24 +75,17 @@ export default function DocumentsTable({
             <span title="Imprimé">
               <Printer size={15} />
             </span>
-          ) : (
-            ''
-          )}
+          ) : null}
           {row.reliquat ? (
             <span title="Reliquat">
               <Settings size={15} />
             </span>
-          ) : (
-            ''
-          )}
-
+          ) : null}
           {row.valide ? (
             <span title="Valide">
               <Lock size={15} />
             </span>
-          ) : (
-            ''
-          )}
+          ) : null}
         </div>
       )
     },
@@ -122,7 +125,6 @@ export default function DocumentsTable({
     { title: 'Intitulé client', dataIndex: 'clientIntitule', key: 'clientIntitule', width: 220 }
   ]
 
-  // "piece" alone isn't guaranteed unique across types/domaines — combine with type.
   const rowKey = (row) => `${row.type}-${row.piece}`
 
   return (
@@ -136,11 +138,11 @@ export default function DocumentsTable({
       scroll={{ x: 'max-content', y: 'calc(115vh - 260px)' }}
       components={{ body: { row: ContextRow } }}
       onRow={(row) => ({
-        record: row, // consumed by ContextRow, never reaches the DOM
-        onContextAction, // consumed by ContextRow
+        record: row,
+        onContextAction,
         onClick: () => onSelectRow(row.piece),
         onDoubleClick: () => onOpenRow(row),
-        onContextMenu: () => onSelectRow(row.piece), // highlight the row on right-click
+        onContextMenu: () => onSelectRow(row.piece),
         className: row.piece === selectedRowKey ? 'selected-row cursor-pointer' : 'cursor-pointer'
       })}
       className="

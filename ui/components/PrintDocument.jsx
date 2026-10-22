@@ -81,47 +81,49 @@ export default function PrintDocument({
       height={320}
     >
       {contextHolder}
-      <Space orientation="vertical" size="middle" style={{ width: '100%', padding: 10 }}>
-        <div>
-          <Typography.Text type="secondary">Imprimante</Typography.Text>
-          <Select
-            style={{ width: '100%' }}
-            size="small"
-            placeholder="Choisir une imprimante"
-            loading={loadingPrinters}
-            value={printer}
-            onChange={setPrinter}
-            disabled={printing}
-            notFoundContent="Aucune imprimante détectée"
-            options={printers.map((p) => ({
-              value: p.name,
-              label: p.displayName || p.name
-            }))}
-          />
-        </div>
-
-        <div>
-          <Checkbox
-            checked={duplex}
-            onChange={(e) => setDuplex(e.target.checked)}
-            disabled={printing}
-          >
-            Recto verso
-          </Checkbox>
+      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+        <div className="px-2 pt-2">
           <div>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {duplex
-                ? 'Deux pages par feuille (recto et verso)'
-                : 'Une page par feuille (recto seulement)'}
-            </Typography.Text>
+            <Typography.Text type="secondary">Imprimante</Typography.Text>
+            <Select
+              style={{ width: '100%' }}
+              size="small"
+              placeholder="Choisir une imprimante"
+              loading={loadingPrinters}
+              value={printer}
+              onChange={setPrinter}
+              disabled={printing}
+              notFoundContent="Aucune imprimante détectée"
+              options={printers.map((p) => ({
+                value: p.name,
+                label: p.displayName || p.name
+              }))}
+            />
           </div>
+
+          <div className="pt-2">
+            <Checkbox
+              checked={duplex}
+              onChange={(e) => setDuplex(e.target.checked)}
+              disabled={printing}
+            >
+              Recto verso
+            </Checkbox>
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {duplex
+                  ? 'Deux pages par feuille (recto et verso)'
+                  : 'Une page par feuille (recto seulement)'}
+              </Typography.Text>
+            </div>
+          </div>
+
+          {error && (
+            <Alert type="error" title={error} showIcon closable onClose={() => setError(null)} />
+          )}
         </div>
 
-        {error && (
-          <Alert type="error" title={error} showIcon closable onClose={() => setError(null)} />
-        )}
-
-        <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-300 bg-gradient-to-t from-white to-gray-100 pt-2 px-2">
           <Button size="small" onClick={onCancel} disabled={printing}>
             Annuler
           </Button>
@@ -135,7 +137,7 @@ export default function PrintDocument({
           >
             Imprimer
           </Button>
-        </Space>
+        </div>
       </Space>
     </DesktopWindow>
   )

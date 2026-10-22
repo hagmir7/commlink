@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal, message } from 'antd'
 import { DEFAULT_DOCUMENT_TYPE } from '../constants/documentTypes'
@@ -12,6 +12,8 @@ import SelectDocumentTypeModal from '../components/NewDocumentModal'
 import { useConfirm } from '../components/ui/ConfirmWindow'
 import PrintDocument from '../components/PrintDocument'
 import TransferDocument from '../components/TransferDocument'
+import DuplicateDocumentModal from '../components/DuplicateDocumentModal'
+import DesktopWindow from '../components/ui/DesktopWindow'
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -41,13 +43,24 @@ export default function Home() {
   const [clientOptions, setClientOptions] = useState([])
   const [printOpen, setPrintOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  const [duplicateSource, setDuplicateSource] = useState(null)
 
-  // The currently selected document (used by the Print / Transfer modals).
-  // NOTE: previously the modal was passed `document`, which resolved to the
-  // global DOM `document` object -> `document.piece` was `undefined`.
+  // Pieces the user has just transformed/deleted. Filtered out of every
+  // fetch response so they never reappear even if the backend still returns
+  // them. Cleared when the user switches document type (different list).
+  const locallyRemovedRef = useRef(new Set())
+  const prevDocTypeRef = useRef(documentType?.value)
+
   const selectedDocument = documents.find((d) => d.piece === selectedRowKey) ?? null
-
   const pdfUrl = `${BASE_URL}/documents/${documentType.type}/${selectedRowKey}/pdf`
+
+  // --- reset the local hide-list when the document type changes ---------
+  useEffect(() => {
+    if (prevDocTypeRef.current !== documentType?.value) {
+      locallyRemovedRef.current = new Set()
+      prevDocTypeRef.current = documentType?.value
+    }
+  }, [documentType])
 
   // --- fetch clients once on mount -------------------------------------
   useEffect(() => {
@@ -96,10 +109,22 @@ export default function Home() {
         if (dateRange?.[0]) params.dateFrom = dateRange[0].format('YYYY-MM-DD')
         if (dateRange?.[1]) params.dateTo = dateRange[1].format('YYYY-MM-DD')
 
+        // Cache-buster — guarantees a fresh body after a transfer/delete.
+        params._t = Date.now()
+
         const res = await api.get(`/documents/short`, { params })
 
         if (isCancelled) return
-        setDocuments(res.data.items ?? [])
+
+        let items = res.data.items ?? []
+
+        // Hide locally-removed pieces (transferred / deleted this session).
+        const removed = locallyRemovedRef.current
+        if (removed.size > 0) {
+          items = items.filter((d) => !removed.has(d.piece))
+        }
+
+        setDocuments(items)
         setTotalItems(res.data.totalItems ?? 0)
         if (res.data.page && res.data.page !== page) setPage(res.data.page)
       } catch (err) {
@@ -159,11 +184,22 @@ export default function Home() {
     handleShow(navigate, `/documents/${row.piece}?documentType=${documentType.type}`)
   }
 
+  // --- duplicate -------------------------------------------------------
+  const handleDuplicate = async (payload, source) => {
+    const { data } = await api.post(
+      `/documents/${documentType.type}/${encodeURIComponent(source.piece)}/duplicate`,
+      payload
+    )
+    setReloadKey((k) => k + 1)
+    if (data?.piece) setSelectedRowKey(data.piece)
+  }
+
   // --- delete ----------------------------------------------------------
   const handleDelete = async (key) => {
     if (!key) return
     try {
       await api.delete(`/documents/${documentType.type}/${key}/delete`)
+      locallyRemovedRef.current.add(key) // hide locally too
       setSelectedRowKey(null)
       setReloadKey((k) => k + 1)
       message.success('Document supprimé')
@@ -202,9 +238,6 @@ export default function Home() {
   }
 
   // --- STEP 1: delete confirmation ------------------------------------
-  // NOTE: accepts an optional explicit key so the right-click context menu
-  // can delete the row it was opened on, not whichever row happens to be
-  // selected. Falls back to `selectedRowKey` (action bar path).
   const showDeleteConfirm = (explicitKey) => {
     const key = explicitKey ?? selectedRowKey
     if (!key) return
@@ -219,7 +252,6 @@ export default function Home() {
         const canRevert = await checkCanRevert(key)
 
         if (canRevert) {
-          // Defer so the first dialog fully unmounts before opening the second
           setTimeout(() => showRevertConfirm(key), 150)
         } else {
           await handleDelete(key)
@@ -245,9 +277,20 @@ export default function Home() {
   }
 
   // --- refresh ---------------------------------------------------------
-  const handleRefresh = () => {
+  // Accepts an optional piece number: when provided, hide it locally right
+  // away (defends against a backend that still returns the source document
+  // after a transfer). Then close modals, deselect, and force a re-fetch.
+  const handleRefresh = useCallback((removedPiece) => {
+    if (removedPiece) {
+      locallyRemovedRef.current.add(removedPiece)
+      setDocuments((docs) => docs.filter((d) => d.piece !== removedPiece))
+    }
+    setTransferOpen(false)
+    setPrintOpen(false)
+    setDuplicateSource(null)
+    setSelectedRowKey(null)
     setReloadKey((k) => k + 1)
-  }
+  }, [])
 
   // --- active filters count + clear-all --------------------------------
   const isDefaultType = documentType?.type === DEFAULT_DOCUMENT_TYPE?.type
@@ -277,14 +320,16 @@ export default function Home() {
         return handleOpenRow(row)
 
       case 'print':
-        // make sure the modal prints the row that was right-clicked
         setSelectedRowKey(row.piece)
         return setPrintOpen(true)
 
       case 'transfer':
-        // make sure the modal transfers the row that was right-clicked
         setSelectedRowKey(row.piece)
         return setTransferOpen(true)
+
+      case 'duplicate':
+        setSelectedRowKey(row.piece)
+        return setDuplicateSource(row)
 
       case 'copy':
         return navigator.clipboard
@@ -355,29 +400,35 @@ export default function Home() {
         onCancel={() => setIsSelectTypeOpen(false)}
       />
 
-      {/* Transfer modal — needs the actual document object (not `document`) */}
-      <Modal
+      <DesktopWindow
         open={transferOpen}
-        onCancel={() => setTransferOpen(false)}
-        footer={null}
-        destroyOnClose
+        onClose={() => setTransferOpen(false)}
         title="Transférer le document"
+        width={600}
       >
-        {selectedDocument && (
+        {transferOpen && selectedDocument && (
           <TransferDocument
             currentDocumentType={documentType.type}
             sourceDoc={selectedDocument}
             setOpen={setTransferOpen}
             onTransferred={handleRefresh}
+            navigateOnSuccess={false}
           />
         )}
-      </Modal>
+      </DesktopWindow>
 
       <PrintDocument
         open={printOpen}
         onCancel={() => setPrintOpen(false)}
         pdfUrl={pdfUrl}
         documentName={selectedDocument?.piece}
+      />
+
+      <DuplicateDocumentModal
+        open={!!duplicateSource}
+        docSource={duplicateSource}
+        close={() => setDuplicateSource(null)}
+        onSubmit={handleDuplicate}
       />
 
       {confirmHolder}

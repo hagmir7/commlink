@@ -19,9 +19,16 @@ const { Text } = Typography
 // Must match the status value used for "Envoyé" in your statuses list.
 const ENVOYER_STATUT_VALUE = 1
 
-// Adapt to the real field holding the article reference in a line object.
 const getArticleRef = (line) =>
   line?.articleRef ?? line?.refArticle ?? line?.reference ?? line?.ref ?? null
+
+// Safe focus: never throws if the input is not in the DOM
+const focusReference = () => window.document.getElementById('referenc')?.focus()
+
+const getErrorMessage = (error, fallback) => {
+  const data = error?.response?.data
+  return data?.title || data?.detail || data?.message || error?.message || fallback
+}
 
 export default function CreateDocument() {
   const { piece } = useParams()
@@ -72,11 +79,7 @@ export default function CreateDocument() {
       setDocument(data)
       setLineItems(data?.lignes ?? [])
     } catch (error) {
-      const errorData = error.response?.data
-
-      message.error(
-        errorData?.title || errorData?.detail || 'Erreur lors de la récupération du document'
-      )
+      message.error(getErrorMessage(error, 'Erreur lors de la récupération du document'))
 
       if (!silent) {
         setDocument(null)
@@ -110,15 +113,17 @@ export default function CreateDocument() {
       return
     }
 
+    let response
     try {
-      const response = await api.patch(`documents/${documentType}/${piece}`, data)
-      window.document.getElementById('referenc').focus()
-      return response.data
+      response = await api.patch(`documents/${documentType}/${piece}`, data)
     } catch (error) {
       console.error('Error updating document:', error)
-      message.error(error.response?.data?.message || 'Erreur lors de la modification du document')
+      message.error(getErrorMessage(error, 'Erreur lors de la modification du document'))
       throw error
     }
+
+    focusReference()
+    return response.data
   }
 
   /**
@@ -130,8 +135,9 @@ export default function CreateDocument() {
       return
     }
 
+    let response
     try {
-      const response = await api.post('documents', data)
+      response = await api.post('documents', data)
 
       const createdPiece = response.data?.piece
 
@@ -140,16 +146,13 @@ export default function CreateDocument() {
       }
 
       navigate(`/documents/${createdPiece}?documentType=${documentType}`)
-      window.document.getElementById('referenc').focus()
-      return response.data
     } catch (error) {
-      const errorData = error.response?.data
-
-      message.error(
-        errorData?.title || errorData?.detail || 'Erreur lors de la création du document'
-      )
+      message.error(getErrorMessage(error, 'Erreur lors de la création du document'))
       throw error
     }
+
+    focusReference()
+    return response.data
   }
 
   /**
@@ -165,6 +168,7 @@ export default function CreateDocument() {
 
   /**
    * Change the status to "Envoyé" and save the WHOLE form.
+   * Only used after sending the document (WhatsApp).
    */
   const handleUpdateStatusToEnvoyer = async () => {
     if (!piece) return
@@ -273,6 +277,7 @@ export default function CreateDocument() {
         documentType={documentType}
         document={document}
         updateDocumentStatus={handleUpdateStatusToEnvoyer}
+        onRefresh={handleLinesUpdate}
       />
       {/* Document header */}
       <DocumentHeaderForm

@@ -49,6 +49,7 @@ export default function DocumentColumn({
           status={reference.error ? 'error' : undefined}
           value={reference.value}
           onChange={reference.onChange}
+          maxLength={17}
           className="flex-1"
         />
       </LabeledField>

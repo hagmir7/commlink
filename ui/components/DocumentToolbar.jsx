@@ -25,7 +25,6 @@ import WhatsappSendDocument from './WhatsappSendDocument'
 import { api, BASE_URL } from '../utils/api'
 import { DOCUMENT_TYPES } from '../constants/documentTypes'
 
-// 👇 IMPORT THE NEW MODAL HERE
 import DocumentInfoModal from './DocumentInfoModal'
 
 const menuItems = [
@@ -134,14 +133,22 @@ function SplitToolbarButton({ icon, label, disabled = false, onClick, menu }) {
   )
 }
 
-export default function DocumentToolbar({ document, documentType, updateDocumentStatus }) {
+/**
+ * Props:
+ * - updateDocumentStatus: sets the status to "Envoyé" (ONLY for WhatsApp send)
+ * - onRefresh: just reloads the current document (transfer of lines, info saved…)
+ */
+export default function DocumentToolbar({
+  document,
+  documentType,
+  updateDocumentStatus,
+  onRefresh
+}) {
   const [transferOpen, setTransferOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [solvOpen, setSolvOpen] = useState(false)
-
-  // 👇 NEW STATE FOR THE MODAL
   const [documentInfoModalOpen, setDocumentInfoModalOpen] = useState(false)
 
   const pdfUrl = `${BASE_URL}/documents/${documentType}/${document?.piece}/pdf`
@@ -172,6 +179,19 @@ export default function DocumentToolbar({ document, documentType, updateDocument
     }
   }
 
+  /**
+   * Called by TransferDocument.
+   * - With an argument (the source piece): the WHOLE document was transferred.
+   *   The source no longer exists and TransferDocument navigates to the new
+   *   document, so we must NOT touch the old piece (no refresh, no status update).
+   * - Without argument: only lines were transferred (or some lines failed).
+   *   The source still exists, so just reload it.
+   */
+  const handleTransferred = (consumedPiece) => {
+    if (consumedPiece) return
+    onRefresh?.()
+  }
+
   return (
     <>
       <div className="shrink-0 flex items-stretch bg-white border-b border-gray-300">
@@ -181,7 +201,6 @@ export default function DocumentToolbar({ document, documentType, updateDocument
 
         <ToolbarButton icon={<BarChartOutlined />} label="Barèmes" disabled />
 
-        {/* 👇 ENABLED THIS BUTTON TO TRIGGER THE NEW MODAL */}
         <ToolbarButton
           icon={<InfoCircleOutlined />}
           label="Informations"
@@ -224,7 +243,7 @@ export default function DocumentToolbar({ document, documentType, updateDocument
           currentDocumentType={documentType}
           sourceDoc={document}
           setOpen={setTransferOpen}
-          onTransferred={updateDocumentStatus}
+          onTransferred={handleTransferred}
         />
       </DesktopWindow>
 
@@ -241,17 +260,15 @@ export default function DocumentToolbar({ document, documentType, updateDocument
         clientCode={document?.clientCode ?? document?.client?.code}
       />
 
-      {/* 👇 NEW MODAL ADDED UNDER SOLVABILITE */}
       {/* Modal « Informations document » */}
       <DocumentInfoModal
         open={documentInfoModalOpen}
         onClose={() => setDocumentInfoModalOpen(false)}
         documentType={documentType}
         piece={document?.piece}
-        onSaved={(data) => {
-          console.log('Saved:', data)
-          // Rafraîchit le document côté parent (statut, totaux, etc.)
-          updateDocumentStatus?.()
+        onSaved={() => {
+          // Only refresh: saving info must not change the status to "Envoyé"
+          onRefresh?.()
         }}
       />
 

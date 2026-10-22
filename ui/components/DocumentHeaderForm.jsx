@@ -59,6 +59,11 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
   const statutDocType =
     doc?.doType ?? DOCUMENT_TYPES.find((item) => item.type === documentType)?.value
 
+  // Same idea for the type sent to the backend: prefer the loaded document's
+  // real type over the (possibly stale) URL param.
+  const realDocumentType =
+    DOCUMENT_TYPES.find((item) => item.value === doc?.doType)?.type ?? documentType
+
   // Auto-submit only when editing an existing document (not on create).
   const canAutoSubmit = Boolean(piece || doc?.piece)
 
@@ -232,13 +237,13 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
     const statutObj = getStatut(statutDocType, snap.statutValue) ?? DEFAULT_STATUT
 
     const formData = {
-      documentType,
+      documentType: realDocumentType,
       clientCode: snap.client,
       reference: snap.reference,
       type: snap.type,
       affaire: snap.affaire,
       expedition: snap.expedition,
-      date: snap.date?.format('DDMMYY'),
+      date: snap.date?.format('YYYY-MM-DD'),
       dateLivraisonStatut: snap.dateLivraisonStatut,
       dateLivraison: snap.dateLivraison?.format('YYYY-MM-DD') ?? null,
       representant: snap.representant,
@@ -323,11 +328,12 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
     setType(v)
     clearError('type')
     autoSubmit({ type: v })
-    const ref = document.getElementById('documentReference')
-    if (ref.value === '') ref.focus()
-  }
 
-  // const focusdateLivraison = () =>
+    // Null-safe: the input may not be mounted, and `ref` would shadow the
+    // forwarded ref, so use another name.
+    const referenceInput = window.document.getElementById('documentReference')
+    if (referenceInput && referenceInput.value === '') referenceInput.focus()
+  }
 
   const handleDateLivraisonChange = (value) => {
     setDateLivraison(value)
@@ -342,7 +348,7 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
   const addCollaborateur = async (value) => {
     const old = representant
     try {
-      await api.patch(`/documents/${documentType}/${piece}/collaborateur`, {
+      await api.patch(`/documents/${realDocumentType}/${piece}/collaborateur`, {
         nom: value,
         prenom: ''
       })
@@ -386,6 +392,7 @@ const DocumentHeaderForm = forwardRef(function DocumentHeaderForm(
 
   useEffect(() => {
     onDataChange?.({ client, reference, statutValue, representant })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, reference, statutValue, representant])
 
   return (
