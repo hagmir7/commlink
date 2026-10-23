@@ -153,7 +153,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
             <div>
               <h3 className="mb-2 text-gray-700 font-medium">Stock de l'article</h3>
               <div className="pb-2 pl-6">
-                <div className="flex items-center pb-2 gap-2">
+                <div className="flex items-center pb-2 gap-x-5">
                   <span className="w-40 text-right mr-2">Dépôt</span>
                   <Select
                     value={depotNo}
@@ -203,7 +203,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
             <div className="pt-2">
               <h3 className="mb-2 text-gray-700 font-medium">Validation quantité livrée</h3>
               <div className="pb-2 pl-6">
-                <div className="flex items-center pb-2 gap-2">
+                <div className="flex items-center pb-2 gap-x-5">
                   <span className="w-40 text-right mr-2">Quantité demandée</span>
                   <Input
                     size="small"
@@ -212,7 +212,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                     disabled
                   />
                 </div>
-                <div className="flex items-center pb-2 gap-2">
+                <div className="flex items-center pb-2 gap-x-5">
                   <span className="w-40 text-right mr-2">Quantité à livrer</span>
                   <Input
                     size="small"
@@ -232,7 +232,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
 
               <div className="mb-2">
                 {/* Gérer un reliquat */}
-                <div className="flex items-center pb-2 gap-2">
+                <div className="flex items-center pb-2 gap-x-5">
                   <Checkbox
                     checked={gererReliquat}
                     onChange={(e) => setGererReliquat(e.target.checked)}
@@ -240,7 +240,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                   <p>Gérer un reliquat</p>
                 </div>
                 <div className="pb-2 pl-6">
-                  <div className="flex items-center pb-2 gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
                     <span className="w-40 text-right mr-2">Quantité en reliquat</span>
                     <Input
                       size="small"
@@ -253,7 +253,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                 </div>
 
                 {/* Générer un document */}
-                <div className="flex items-center pb-2 gap-2">
+                <div className="flex items-center pb-2 gap-x-5">
                   <Checkbox
                     checked={genererDocument}
                     onChange={(e) => setGenererDocument(e.target.checked)}
@@ -262,7 +262,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                 </div>
 
                 <div className="pb-2 pl-6">
-                  <div className="flex items-center pb-2 gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
                     <span className="w-40 text-right mr-2">Type de document</span>
                     <Select
                       defaultValue="Commande fournisseur"
@@ -272,7 +272,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                       options={[{ value: 'Commande fournisseur', label: 'Commande fournisseur' }]}
                     />
                   </div>
-                  <div className="flex items-center pb-2 gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
                     <span className="w-40 text-right mr-2">Choix de traitement</span>
                     <Select
                       defaultValue="Compléter un document existant"
@@ -287,7 +287,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                       ]}
                     />
                   </div>
-                  <div className="flex items-center pb-2 gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
                     <span className="w-40 text-right mr-2">Souche du document</span>
                     <Select
                       defaultValue="Souche par défaut"
@@ -297,38 +297,36 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                       options={[{ value: 'Souche par défaut', label: 'Souche par défaut' }]}
                     />
                   </div>
-
-                  {/* Fournisseur & code */}
-                  <div className="flex items-center pb-2 gap-2">
-                    <span className="w-40 mr-2" />
-                    <div className="w-64 flex gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
+                    <span className="w-40 text-right mr-2">
                       <Select
-                        value={supplierRef}
-                        onChange={handleSupplierChange}
+                        value={'FP'}
+                        // onChange={handleSupplierChange}
                         className="flex-1"
                         size="small"
                         disabled={!genererDocument}
                         placeholder="Fournisseur"
-                        options={suppliers.map((s) => ({
-                          value: s.cT_Num,
-                          label: s.supplierName
-                        }))}
+                        options={[
+                          { label: 'Fournisseur principal', value: 'FP' },
+                          { label: 'Fournisseur article', value: 'FA' },
+                          { label: 'Tous le Fournisseur', value: 'TF' }
+                        ]}
                       />
-                      <Select
-                        value={supplierRef}
-                        onChange={handleSupplierChange}
-                        className="w-24"
-                        size="small"
-                        disabled={!genererDocument}
-                        options={suppliers.map((s) => ({
-                          value: s.cT_Num,
-                          label: s.cT_Num
-                        }))}
-                      />
-                    </div>
+                    </span>
+                    <Select
+                      value={supplierRef}
+                      onChange={handleSupplierChange}
+                      // className="w-24"
+                      className="w-64"
+                      size="small"
+                      disabled={!genererDocument}
+                      options={suppliers.map((s) => ({
+                        value: s.cT_Num,
+                        label: s.supplierName + ' ' + s.cT_Num
+                      }))}
+                    />
                   </div>
-
-                  <div className="flex items-center pb-2 gap-2">
+                  <div className="flex items-center pb-2 gap-x-5">
                     <span className="w-40 text-right mr-2">Quantité à commander</span>
                     <Input
                       size="small"

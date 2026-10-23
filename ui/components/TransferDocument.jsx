@@ -1,7 +1,6 @@
 import { Radio, Select, Input, DatePicker, Checkbox, Button, message } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
-import { api } from '../utils/api'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { useNavigate } from 'react-router-dom'
@@ -9,24 +8,24 @@ import { useNavigate } from 'react-router-dom'
 import StockUnavailabilityModal from './ui/StockUnavailabilityModal'
 import useUnavailabilityQueue from '../hooks/useUnavailabilityQueue'
 import { DEFAULT_STATUT, SOUCHE_OPTIONS } from '../constants/documentTypes'
+import {
+  DOCUMENT_CHAIN,
+  TRANSFORM_OPTIONS,
+  DEFAULT_TRANSFORM_OPTIONS,
+  getAllowedTargets
+} from '../constants/transform'
+import {
+  getStatuts,
+  getNextPiece,
+  transformDocument,
+  transformLines,
+  parseTransferResult
+} from '../api/transformApi'
 
 dayjs.extend(customParseFormat)
-const TODAY = dayjs().startOf('day')
 
-const DOCUMENT_CHAIN = [
-  { label: 'Devis', value: 'DocumentTypeVenteDevis', target: null, hidden: true },
-  { label: 'Bon de commande', value: 'DocumentTypeVenteCommande', target: 'Commande' },
-  { label: 'Bon de livraison', value: 'DocumentTypeVenteLivraison', target: 'Livraison' },
-  { label: 'Facture', value: 'DocumentTypeVenteFacture', target: 'Facture' }
-]
-
-const transformOptions = [
-  { key: 'conserverDevis', label: "Conserver le devis d'origine" },
-  { key: 'majTaxes', label: 'Mettre à jour les taux de taxes' },
-  { key: 'recalculerPrix', label: 'Recalculer le prix de vente' },
-  { key: 'recalculerFrais', label: "Recalculer les frais d'expédition" },
-  { key: 'appliquerBaremes', label: 'Appliquer les barèmes' }
-]
+// DEFAULT_STATUT peut exposer { label, value } ou seulement { label } selon votre fichier de constantes.
+const DEFAULT_STATUT_VALUE = DEFAULT_STATUT?.value ?? DEFAULT_STATUT?.label
 
 export default function TransferDocument({
   currentDocumentType,
@@ -38,38 +37,28 @@ export default function TransferDocument({
 }) {
   const navigate = useNavigate()
 
-  const currentIndex = useMemo(
-    () => DOCUMENT_CHAIN.findIndex((d) => d.value === currentDocumentType),
+  // Cibles possibles pour ce type de document (même règle que le backend).
+  const allowedEntries = useMemo(
+    () => getAllowedTargets(currentDocumentType),
     [currentDocumentType]
   )
-
-  const allowedEntries = useMemo(
-    () => (currentIndex >= 0 ? DOCUMENT_CHAIN.slice(currentIndex + 1) : []),
-    [currentIndex]
-  )
   const allowedTypes = useMemo(() => allowedEntries.map((d) => d.value), [allowedEntries])
-
   const defaultType = allowedTypes[0] ?? null
 
   const [documentType, setDocumentType] = useState(defaultType)
-  const [statut, setStatut] = useState(DEFAULT_STATUT.label)
+  const [statut, setStatut] = useState(DEFAULT_STATUT_VALUE)
   const [souche, setSouche] = useState(sourceDoc?.souche)
   const [nextPiece, setNextPiece] = useState('')
   const [statutOptions, setStatutOptions] = useState([])
-  const [date, setDate] = useState(TODAY)
+  const [date, setDate] = useState(() => dayjs().startOf('day'))
   const [submitting, setSubmitting] = useState(false)
+  const [options, setOptions] = useState(DEFAULT_TRANSFORM_OPTIONS)
 
-  const [options, setOptions] = useState({
-    conserverDevis: false,
-    majTaxes: false,
-    recalculerPrix: false,
-    recalculerFrais: false,
-    appliquerBaremes: false
-  })
+  const hasLines = lignes.length > 0
 
+  // Fin de la file d'alertes de stock : la source n'est que partiellement transformée,
+  // on la garde donc localement (onTransferred sans argument) et on ferme.
   const queue = useUnavailabilityQueue(() => {
-    // After the stock modal finishes, the source is only partially transformed.
-    // Do NOT remove the source locally in that case.
     onTransferred?.()
     setOpen(false)
   })
@@ -86,24 +75,34 @@ export default function TransferDocument({
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  // Statuts du type cible. Si le statut choisi n'existe pas pour ce type, on revient au statut par défaut.
   useEffect(() => {
     if (!documentType) return
 
     let cancelled = false
-    const getStatuts = async () => {
+    const loadStatuts = async () => {
       try {
-        const response = await api.get(`documents/${documentType}/statuts`)
-        if (!cancelled) setStatutOptions(response.data)
+        const list = await getStatuts(documentType)
+        if (cancelled) return
+
+        setStatutOptions(list)
+        setStatut((current) => {
+          if (list.some((o) => o.value === current)) return current
+          const preferred = list.find((o) => o.value === DEFAULT_STATUT_VALUE)
+          return (preferred ?? list[0])?.value ?? current
+        })
       } catch (error) {
         console.error(error)
       }
     }
-    getStatuts()
+    loadStatuts()
+
     return () => {
       cancelled = true
     }
   }, [documentType])
 
+  // Prochain numéro de pièce (affichage seulement : Sage attribue le numéro à la création).
   useEffect(() => {
     if (!documentType) {
       setNextPiece('')
@@ -111,18 +110,17 @@ export default function TransferDocument({
     }
 
     let cancelled = false
-    const getNextPiece = async () => {
+    const loadNextPiece = async () => {
       try {
-        const response = await api.get(
-          `documents/${documentType}/next-piece?souche=${souche ?? ''}`
-        )
-        if (!cancelled) setNextPiece(response?.data?.piece ?? '')
+        const piece = await getNextPiece(documentType, souche)
+        if (!cancelled) setNextPiece(piece)
       } catch (error) {
         console.error(error)
         if (!cancelled) setNextPiece('')
       }
     }
-    getNextPiece()
+    loadNextPiece()
+
     return () => {
       cancelled = true
     }
@@ -148,74 +146,71 @@ export default function TransferDocument({
 
     const payload = {
       statut,
-      souche,
-      piece: nextPiece,
       date: date.format('YYYY-MM-DD'),
       options
     }
+    // console.log(selectedEntry.target)
+    // return
 
     try {
       setSubmitting(true)
 
-      // ------------------------------------------------------------------
-      // Lines selected: transfer only those lines, source STAYS.
-      // ------------------------------------------------------------------
-      if (lignes.length > 0) {
-        const positions = lignes.map((l) => (typeof l === 'object' ? (l.position ?? l.id) : l))
+      // Lignes choisies : on ne transfère qu'elles, la source reste.
+      // Sinon : document entier, la source est consommée (sauf reliquat).
+      const { data } = hasLines
+        ? await transformLines(currentDocumentType, sourceDoc.piece, {
+            // Positions 1-based, comme le backend les compte.
+            positions: lignes.map((l) => (typeof l === 'object' ? (l.position ?? l.id) : l)),
+            target: selectedEntry.target,
+            ...payload
+          })
+        : await transformDocument(
+            currentDocumentType,
+            sourceDoc.piece,
+            selectedEntry.target,
+            payload
+          )
 
-        const response = await api.post(
-          `documents/${currentDocumentType}/${sourceDoc.piece}/transform/lines`,
-          { positions, target: selectedEntry.target, ...payload }
+      const result = parseTransferResult(data)
+      const missing = result.nonTransferred
+
+      // Échec renvoyé avec un statut HTTP 200 (success = false).
+      if (!result.success) {
+        message.error(result.message || 'La transformation a échoué.')
+        queue.start(missing)
+        return
+      }
+
+      // Transformation partielle : la fin de la file ferme la fenêtre et rafraîchit.
+      if (missing.length > 0) {
+        message.warning(
+          !hasLines && result.piece
+            ? `Document ${result.piece} créé, mais ${missing.length} article(s) non transféré(s).`
+            : `${missing.length} article(s) non transféré(s).`
         )
+        queue.start(missing)
+        return
+      }
 
-        const missing = response?.data?.nonTransferred ?? []
-        if (missing.length > 0) {
-          message.warning(`${missing.length} ligne(s) non transférée(s).`)
-          queue.start(missing)
-          onTransferred?.() // source still exists — don't remove locally
-          return
-        }
-
+      if (hasLines) {
         message.success(
           lignes.length > 1 ? `${lignes.length} lignes transformées` : 'Ligne transformée'
         )
-        onTransferred?.() // source still exists — don't remove locally
+        onTransferred?.() // la source existe toujours : on ne la retire pas
         setOpen(false)
         return
       }
 
-      // ------------------------------------------------------------------
-      // No lines selected: transfer the WHOLE document → source is consumed.
-      // ------------------------------------------------------------------
-      const response = await api.post(
-        `documents/${currentDocumentType}/${sourceDoc.piece}/transform?target=${selectedEntry.target}`,
-        payload
-      )
-
-      const newPiece = response?.data?.resultat ?? response?.data?.piece
-      const missing = response?.data?.nonTransferred ?? []
-
-      if (missing.length > 0) {
-        message.warning(
-          newPiece
-            ? `Document ${newPiece} créé, mais ${missing.length} ligne(s) non transférée(s).`
-            : `${missing.length} ligne(s) non transférée(s).`
-        )
-        queue.start(missing)
-        onTransferred?.() // source still has un-transferred lines — keep it
-        return
-      }
-
-      if (!newPiece) {
+      if (!result.piece) {
         message.error('Aucun document généré.')
         return
       }
 
-      message.success(`Document ${newPiece} créé.`)
-      onTransferred?.(sourceDoc.piece)
+      message.success(`Document ${result.piece} créé.`)
+      onTransferred?.(sourceDoc.piece) // source entièrement transformée : le parent peut la retirer
 
       if (navigateOnSuccess) {
-        navigate(`/documents/${newPiece}?documentType=${documentType}`)
+        navigate(`/documents/${result.piece}?documentType=${documentType}`)
       }
 
       setOpen(false)
@@ -226,8 +221,8 @@ export default function TransferDocument({
         data?.message ||
           data?.detail ||
           data?.title ||
-          (lignes.length > 0
-            ? 'Erreur lors de la transformation des lignes'
+          (hasLines
+            ? 'Erreur lors de la transformation des lignes.'
             : 'Erreur lors de la transformation.')
       )
 
@@ -240,28 +235,34 @@ export default function TransferDocument({
   return (
     <div>
       <div className="text-[13px] text-gray-800 py-2 px-2">
-        <p className="mb-2 text-gray-700">Indiquer vers quel type transformer ce(s) document(s):</p>
+        <p className="mb-2 text-gray-700">
+          Indiquer vers quel type transformer ce(s) document(s) :
+        </p>
         <Radio.Group
           value={documentType}
           onChange={(e) => setDocumentType(e.target.value)}
           style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
         >
-          {DOCUMENT_CHAIN.map((type) => {
-            const disabled = !allowedTypes.includes(type.value)
-            return (
-              <Radio
-                key={type.value}
-                value={type.value}
-                disabled={disabled}
-                className="text-[13px]"
-              >
-                {type.label}
-              </Radio>
-            )
-          })}
+          {DOCUMENT_CHAIN.map((type) => (
+            <Radio
+              key={type.value}
+              value={type.value}
+              disabled={!allowedTypes.includes(type.value)}
+              className="text-[13px]"
+            >
+              {type.label}
+            </Radio>
+          ))}
         </Radio.Group>
 
-        <br />
+        <p className="mt-2 text-[12px] text-gray-500">
+          {allowedTypes.length === 0
+            ? 'Ce type de document ne peut pas être transformé.'
+            : hasLines
+              ? `${lignes.length} ligne(s) sélectionnée(s) : seules ces lignes sont transférées, le document d’origine est conservé.`
+              : 'Le document entier est transformé.'}
+        </p>
+
         <SectionDivider label="Paramètres du nouveau document" />
 
         <div className="flex flex-col gap-2.5">
@@ -292,7 +293,6 @@ export default function TransferDocument({
           <FieldRow label="N° de pièce">
             <Input
               value={nextPiece}
-              onChange={(e) => setNextPiece(e.target.value)}
               size="small"
               readOnly
               disabled={!canTransform}
@@ -304,7 +304,7 @@ export default function TransferDocument({
             <DatePicker
               size="small"
               value={date}
-              onChange={(v) => setDate(v)}
+              onChange={(v) => v && setDate(v)}
               format="DDMMYY"
               disabled={!canTransform}
               className="w-full"
@@ -315,25 +315,22 @@ export default function TransferDocument({
 
         <SectionDivider label="Options de transformation" />
 
-        <div className="flex flex-col gap-2.5">
-          <div className="mt-1 flex flex-col gap-1.5 pl-[1px]">
-            {transformOptions.map((opt) => (
-              <Checkbox
-                key={opt.key}
-                checked={options[opt.key]}
-                onChange={() => toggleOption(opt.key)}
-                disabled={!canTransform}
-                className="text-[13px]"
-              >
-                {opt.label}
-              </Checkbox>
-            ))}
-          </div>
+        <div className="mt-1 flex flex-col gap-1.5 pl-[1px]">
+          {TRANSFORM_OPTIONS.map((opt) => (
+            <Checkbox
+              key={opt.key}
+              checked={options[opt.key]}
+              onChange={() => toggleOption(opt.key)}
+              disabled={!canTransform}
+              className="text-[13px]"
+            >
+              {opt.label}
+            </Checkbox>
+          ))}
         </div>
       </div>
-      <br />
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-300 bg-gradient-to-t from-white to-gray-100 p-2">
+      <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-gray-300 bg-gradient-to-t from-white to-gray-100 p-2">
         <Button
           type="primary"
           size="small"
