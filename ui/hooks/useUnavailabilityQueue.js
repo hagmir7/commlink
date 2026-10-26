@@ -3,8 +3,11 @@ import { useCallback, useRef, useState } from 'react'
 /**
  * Queue of "stock unavailable" items, shown one modal step at a time.
  * onDone(results) runs when the queue ends (last OK, or the user closes it).
+ *
+ * context: { documentPiece, documentType } of the document the items belong to.
+ * They are forwarded to the modal through modalProps.
  */
-export default function useUnavailabilityQueue(onDone) {
+export default function useUnavailabilityQueue(onDone, { documentPiece, documentType } = {}) {
   const [items, setItems] = useState([])
   const [index, setIndex] = useState(0)
   const [open, setOpen] = useState(false)
@@ -43,7 +46,9 @@ export default function useUnavailabilityQueue(onDone) {
       onClose: finish,
       unvilableData: items[index] ?? null,
       current: index + 1,
-      total: items.length
+      total: items.length,
+      documentPiece,
+      documentType
     }
   }
 }

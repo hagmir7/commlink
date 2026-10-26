@@ -11,6 +11,7 @@ import DocumentBarTitle from '../components/DocumentBarTitle'
 import DocumentToolbar from '../components/DocumentToolbar'
 import DocumentIntegrationModal from '../components/DocumentIntegrationModal'
 import StockUnavailabilityModal from '../components/ui/StockUnavailabilityModal'
+import useUnavailabilityQueue from '../hooks/useUnavailabilityQueue'
 import { dateFormat } from '../utils/date'
 import DocumentArticleStock from '../components/DocumentArticleStock'
 
@@ -44,16 +45,9 @@ export default function CreateDocument() {
   const [loadingMovement, setLoadingMovement] = useState(false)
   const [integrationOpen, setIntegrationOpen] = useState(false)
 
-  // Stock unavailability queue: one modal step per item in the list
-  const [unavailabilityOpen, setUnavailabilityOpen] = useState(false)
-  const [unavailabilityData, setUnavailabilityData] = useState([])
-  const [unavailabilityIndex, setUnavailabilityIndex] = useState(0)
-
-  // Values validated by the user for each item (index-aligned with the data)
-  const unavailabilityResultsRef = useRef([])
-
   const linesRef = useRef(null)
   const headerRef = useRef(null)
+  const requestIdRef = useRef(0)
 
   // Derived selection state
   const hasSelection = selectedRows.length > 0
@@ -64,31 +58,48 @@ export default function CreateDocument() {
    * Fetch document.
    * `silent` = background refresh: no loading flag, and the existing
    * document is kept on screen if the request fails.
+   * Stale responses (older request finishing after a newer one) are ignored.
    */
-  const fetchDocument = async (currentPiece, { silent = false } = {}) => {
-    if (!currentPiece || !documentType) {
-      return
-    }
-
-    if (!silent) setLoadingDocument(true)
-
-    try {
-      const response = await api.get(`documents/${currentPiece}`)
-      const data = response.data
-
-      setDocument(data)
-      setLineItems(data?.lignes ?? [])
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Erreur lors de la récupération du document'))
-
-      if (!silent) {
-        setDocument(null)
-        setLineItems([])
+  const fetchDocument = useCallback(
+    async (currentPiece, { silent = false } = {}) => {
+      if (!currentPiece || !documentType) {
+        return
       }
-    } finally {
-      if (!silent) setLoadingDocument(false)
-    }
-  }
+
+      const requestId = ++requestIdRef.current
+      if (!silent) setLoadingDocument(true)
+
+      try {
+        const response = await api.get(`documents/${currentPiece}`)
+        if (requestId !== requestIdRef.current) return
+
+        const data = response.data
+        setDocument(data)
+        setLineItems(data?.lignes ?? [])
+      } catch (error) {
+        if (requestId !== requestIdRef.current) return
+
+        message.error(getErrorMessage(error, 'Erreur lors de la récupération du document'))
+
+        if (!silent) {
+          setDocument(null)
+          setLineItems([])
+        }
+      } finally {
+        if (!silent && requestId === requestIdRef.current) setLoadingDocument(false)
+      }
+    },
+    [documentType]
+  )
+
+  /**
+   * Queue of "stock unavailable" items.
+   * onDone runs when the queue ends (last OK, "OK pour tous" or close).
+   */
+  const queue = useUnavailabilityQueue(() => fetchDocument(piece, { silent: true }), {
+    documentPiece: piece,
+    documentType
+  })
 
   /**
    * Load document when piece or documentType changes
@@ -99,11 +110,11 @@ export default function CreateDocument() {
     if (piece && documentType) {
       fetchDocument(piece)
     } else {
+      requestIdRef.current++ // invalidate any request in flight
       setDocument(null)
       setLineItems([])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [piece, documentType])
+  }, [piece, documentType, fetchDocument])
 
   /**
    * Update existing document
@@ -183,28 +194,20 @@ export default function CreateDocument() {
 
   /**
    * Handle line selection.
-   * Stable callback — DocumentLines can safely put it in an effect dependency
-   * list without triggering an update loop.
+   * Stable callback so DocumentLines can safely use it in effect dependencies.
    */
   const handleSelectionChange = useCallback((_keys, rows) => {
     setSelectedRows(rows ?? [])
   }, [])
 
   /**
-   * Handle movement loading
-   */
-  const handleLoadingMovement = (loading) => {
-    setLoadingMovement(loading)
-  }
-
-  /**
    * Refresh document after a line update.
    * Returns the promise so callers can `await onUpdate()`.
    */
-  const handleLinesUpdate = () => {
+  const handleLinesUpdate = useCallback(() => {
     if (!piece) return Promise.resolve()
     return fetchDocument(piece, { silent: true })
-  }
+  }, [piece, fetchDocument])
 
   /**
    * Handle an entry picked from the "Actions" dropdown.
@@ -224,44 +227,12 @@ export default function CreateDocument() {
   }
 
   /**
-   * Called when the integration finishes.
+   * Called when the integration finishes: refresh, then show the
+   * unavailability queue if some items could not be integrated.
    */
   const integrationComplete = (data) => {
     fetchDocument(piece, { silent: true })
-
-    if (Array.isArray(data) && data.length > 0) {
-      unavailabilityResultsRef.current = []
-      setUnavailabilityData(data)
-      setUnavailabilityIndex(0)
-      setUnavailabilityOpen(true)
-    }
-  }
-
-  /**
-   * Close the whole unavailability queue and reset its state
-   */
-  const resetUnavailability = () => {
-    setUnavailabilityOpen(false)
-    setUnavailabilityData([])
-    setUnavailabilityIndex(0)
-  }
-
-  /**
-   * User clicked OK: store the values, then show the next item,
-   * or close after the last one.
-   */
-  const handleUnavailabilityOk = (values) => {
-    unavailabilityResultsRef.current[unavailabilityIndex] = values
-
-    const nextIndex = unavailabilityIndex + 1
-
-    if (nextIndex < unavailabilityData.length) {
-      setUnavailabilityIndex(nextIndex)
-      return
-    }
-
-    resetUnavailability()
-    fetchDocument(piece, { silent: true })
+    queue.start(data)
   }
 
   return (
@@ -295,7 +266,7 @@ export default function CreateDocument() {
         piece={piece}
         documentType={documentType}
         onSelectionChange={handleSelectionChange}
-        onLoadingMovement={handleLoadingMovement}
+        onLoadingMovement={setLoadingMovement}
         onUpdate={handleLinesUpdate}
       />
 
@@ -368,6 +339,7 @@ export default function CreateDocument() {
           </Button>
         </div>
       </div>
+
       <DocumentIntegrationModal
         open={integrationOpen}
         onClose={() => setIntegrationOpen(false)}
@@ -376,16 +348,9 @@ export default function CreateDocument() {
         onIntegrated={integrationComplete}
         document={document}
       />
+
       {/* key remounts the modal for each item so its local state resets */}
-      <StockUnavailabilityModal
-        key={unavailabilityIndex}
-        open={unavailabilityOpen}
-        onOk={handleUnavailabilityOk}
-        onClose={resetUnavailability}
-        unvilableData={unavailabilityData[unavailabilityIndex] ?? null}
-        current={unavailabilityIndex + 1}
-        total={unavailabilityData.length}
-      />
+      <StockUnavailabilityModal key={queue.index} {...queue.modalProps} />
     </div>
   )
 }

@@ -19,7 +19,16 @@ const computeOrderQty = (needed, supplier) => {
   return Math.ceil(atLeastMin / pack) * pack
 }
 
-const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
+const StockUnavailabilityModal = ({
+  open,
+  onClose,
+  onOk,
+  unvilableData,
+  current,
+  total,
+  documentPiece,
+  documentType
+}) => {
   const articleRef = unvilableData?.articleRef
   const quantiteDemandee = toNumber(unvilableData?.quantity)
 
@@ -28,6 +37,7 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
   const [stocks, setStocks] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
 
   // Selections / editable values
   const [depotNo, setDepotNo] = useState(null)
@@ -48,7 +58,6 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
   )
 
   const stockDisponible = selectedStock?.qteDisponible ?? 0
-
   const stockATerme = stockDisponible + (selectedStock?.qteCommandee ?? 0)
 
   /**
@@ -129,21 +138,48 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
     setQuantiteACommander(String(computeOrderQty(toNumber(quantiteReliquat), supplier)))
   }
 
+  const buildValues = () => ({
+    data: unvilableData,
+    articleRef,
+    depotNo,
+    quantiteALivrer: toNumber(quantiteALivrer),
+    gererReliquat,
+    quantiteReliquat: gererReliquat ? toNumber(quantiteReliquat) : 0,
+    genererDocument,
+    fournisseur: genererDocument ? supplierRef : null,
+    quantiteACommander: genererDocument ? toNumber(quantiteACommander) : 0
+  })
+
   const handleOk = () => {
-    onOk?.({
-      data: unvilableData,
-      articleRef,
-      depotNo,
-      quantiteALivrer: toNumber(quantiteALivrer),
-      gererReliquat,
-      quantiteReliquat: gererReliquat ? toNumber(quantiteReliquat) : 0,
-      genererDocument,
-      fournisseur: genererDocument ? supplierRef : null,
-      quantiteACommander: genererDocument ? toNumber(quantiteACommander) : 0
-    })
+    onOk?.(buildValues())
   }
 
-  const title = `Indisponibilité en stock : ${articleRef}`
+  const generateDocumentAchat = async () => {
+    if (!documentType || !documentPiece) {
+      console.error('generateDocumentAchat: missing props', { documentType, documentPiece })
+      message.error('Type ou numéro de pièce manquant')
+      return
+    }
+
+    try {
+      setGenerating(true)
+      await api.post(`documents/${documentType}/${documentPiece}/to-achat`, {
+        // fournisseurCode: 'FR001',
+        targetAchatType: 'DocumentTypeAchatCommande',
+        statut: 'DocumentStatutTypeAPrepare'
+      })
+      message.success('Document achat généré avec succès')
+      onClose?.()
+    } catch (error) {
+      message.error(error?.response?.data?.message || 'Erreur de génération du document')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const title = `Indisponibilité en stock : ${articleRef ?? ''}${
+    total > 1 ? ` (${current}/${total})` : ''
+  }`
 
   return (
     <DesktopWindow open={open} onClose={onClose} canClose={false} title={title} width={600}>
@@ -301,7 +337,6 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                     <span className="w-40 text-right mr-2">
                       <Select
                         value={'FP'}
-                        // onChange={handleSupplierChange}
                         className="flex-1"
                         size="small"
                         disabled={!genererDocument}
@@ -309,14 +344,13 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
                         options={[
                           { label: 'Fournisseur principal', value: 'FP' },
                           { label: 'Fournisseur article', value: 'FA' },
-                          { label: 'Tous le Fournisseur', value: 'TF' }
+                          { label: 'Tous les fournisseurs', value: 'TF' }
                         ]}
                       />
                     </span>
                     <Select
                       value={supplierRef}
                       onChange={handleSupplierChange}
-                      // className="w-24"
                       className="w-64"
                       size="small"
                       disabled={!genererDocument}
@@ -346,7 +380,13 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
             <Button size="small" disabled className="rounded-sm text-xs px-4">
               Substitution
             </Button>
-            <Button size="small" disabled className="rounded-sm text-xs px-4">
+            <Button
+              onClick={generateDocumentAchat}
+              size="small"
+              loading={generating}
+              disabled={loading}
+              className="rounded-sm text-xs px-4"
+            >
               OK pour tous
             </Button>
             <Button
@@ -354,11 +394,16 @@ const StockUnavailabilityModal = ({ open, onClose, onOk, unvilableData }) => {
               size="small"
               className="rounded-sm text-xs px-6 bg-blue-600"
               onClick={handleOk}
-              disabled={loading}
+              disabled={loading || generating}
             >
               OK
             </Button>
-            <Button size="small" onClick={onClose} className="rounded-sm text-xs px-4">
+            <Button
+              size="small"
+              onClick={onClose}
+              disabled={generating}
+              className="rounded-sm text-xs px-4"
+            >
               Annuler
             </Button>
           </div>

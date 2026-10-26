@@ -351,7 +351,12 @@ export default function TransferDocument({
         </Button>
       </div>
 
-      <StockUnavailabilityModal key={queue.index} {...queue.modalProps} />
+      <StockUnavailabilityModal
+        key={queue.index}
+        {...queue.modalProps}
+        documentPiece={sourceDoc?.piece}
+        documentType={currentDocumentType}
+      />
     </div>
   )
 }
