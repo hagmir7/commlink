@@ -165,7 +165,7 @@ const StockUnavailabilityModal = ({
       setGenerating(true)
       await api.post(`documents/${documentType}/${documentPiece}/to-achat`, {
         // fournisseurCode: 'FR001',
-        targetAchatType: 'DocumentTypeAchatCommande',
+        targetAchatType: 'DocumentTypeAchatCommandeConf',
         statut: 'DocumentStatutTypeAPrepare'
       })
       message.success('Document achat généré avec succès')

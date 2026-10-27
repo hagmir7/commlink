@@ -16,7 +16,9 @@ const DEFAULT_CONNECTION = 'https://localhost:7244'
 // Available companies (matches SageCompanies keys in appsettings.json)
 const COMPANIES = [
   { value: 'stile', label: 'Stile Mobili' },
-  { value: 'intercocina', label: 'Intercocina' }
+  { value: 'intercocina', label: 'Intercocina' },
+  { value: 'seriemoble', label: 'Seriemoble' },
+  { value: 'astidkora', label: 'Astidkora' }
 ]
 
 const DEFAULT_COMPANY = 'stile'
