@@ -101,29 +101,44 @@ export default function DocumentArticleStock({ refArticle }) {
       stockMax: 0
     }
   )
+
   const stockDisponible = totals.qteStock - totals.qtePreparee
   const stockATerme =
     totals.qteStock + totals.qteCommandee - totals.qteReservee - totals.qtePreparee
 
   const hasPrepare = totals.qtePreparee !== 0
   const hasControl = totals.qteAControler > 0
+
   return (
     <Spin spinning={loading}>
       <div className="shrink-0 bg-[#eaf1fb] border border-gray-300 rounded-lg overflow-hidden">
-        {/* ---- Totaux agrégés ---- */}
+        {/* ---- Totaux agrégés : 3 colonnes ---- */}
         <Row>
-          <Col span={12} className="px-3 py-2 border-r border-gray-300 space-y-1">
+          {/* Col 1 – État physique */}
+          <Col
+            xs={24}
+            md={8}
+            className="px-3 py-2 space-y-1 border-b md:border-b-0 md:border-r border-gray-300"
+          >
             <Line label="Stock réel" value={totals.qteStock} />
             <Line label="Disponible" value={stockDisponible} highlight />
             <Line label="Stock à terme" value={stockATerme} highlight />
+          </Col>
+
+          {/* Col 2 – Mouvements */}
+          <Col
+            xs={24}
+            md={8}
+            className="px-3 py-2 space-y-1 border-b md:border-b-0 md:border-r border-gray-300"
+          >
+            <Line label="Réservé" value={totals.qteReservee} />
+            <Line label="Commandé" value={totals.qteCommandee} />
             {hasPrepare && <Line label="Préparé" value={totals.qtePreparee} />}
             {hasControl && <Line label="À contrôler" value={totals.qteAControler} />}
           </Col>
 
-          <Col span={12} className="px-3 py-2 space-y-1">
-            <Line label="Réservé" value={totals.qteReservee} />
-            <Line label="Commandé" value={totals.qteCommandee} />
-
+          {/* Col 3 – Seuils */}
+          <Col xs={24} md={8} className="px-3 py-2 space-y-1">
             <Line label="Stock mini" value={totals.stockMin} muted />
             <Line label="Stock maxi" value={totals.stockMax} muted />
           </Col>
