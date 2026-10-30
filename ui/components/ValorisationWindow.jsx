@@ -15,6 +15,7 @@ import {
 import { Tag } from 'lucide-react'
 import TitleBar from './TitleBar'
 import { api } from '../utils/api'
+import EcheancierTab from './EcheancierTab'
 
 // --- Helpers ---
 const SectionDivider = ({ children, className = '' }) => (
@@ -274,8 +275,9 @@ export default function ValorisationWindow({ heightClass = 'h-screen', piece = '
 
   const renderEcheancier = () => (
     <>
-      <SectionDivider className="!mt-2">Echéancier</SectionDivider>
-      <div className="text-gray-500">Aucune échéance.</div>
+      {/* <SectionDivider className="!mt-2">Echéancier</SectionDivider> */}
+
+      <EcheancierTab documentPiece={piece} documentType={'DocumentTypeVenteDevis'} />
     </>
   )
 
