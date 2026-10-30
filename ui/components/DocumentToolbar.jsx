@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from 'react'
+import React, { forwardRef, useCallback, useState } from 'react'
 import { Dropdown } from 'antd'
 import {
   SettingOutlined,
@@ -192,6 +192,10 @@ export default function DocumentToolbar({
     onRefresh?.()
   }
 
+  const handleopnePied = useCallback((documentPiece) => {
+    window.api.open({ url: `/documents/valorisation/${documentPiece}` })
+  }, [])
+
   return (
     <>
       <div className="shrink-0 flex items-stretch bg-white border-b border-gray-300">
@@ -208,7 +212,11 @@ export default function DocumentToolbar({
           onClick={() => setDocumentInfoModalOpen(true)}
         />
 
-        <ToolbarButton icon={<CaretDownOutlined />} label="Pied" disabled />
+        <ToolbarButton
+          icon={<CaretDownOutlined />}
+          label="Pied"
+          onClick={() => handleopnePied(document?.piece)}
+        />
 
         {/* Click = print · arrow = more options (WhatsApp) */}
         <SplitToolbarButton

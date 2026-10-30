@@ -14,6 +14,7 @@ import Clients from './components/Clients'
 import Fournisseurs from './components/Fournisseurs'
 import ShowArticle from './components/ShowArticle'
 import ShowClient from './components/ShowClient'
+import ValorisationWindow from './components/ValorisationWindow'
 
 const Home = lazy(() => import('./pages/Home'))
 
@@ -84,6 +85,10 @@ export const router = createHashRouter([
       {
         path: '/documents/:piece',
         element: <CreateDocument />
+      },
+      {
+        path: '/documents/valorisation/:piece',
+        element: <ValorisationWindow />
       },
       {
         path: '/minimized-document',

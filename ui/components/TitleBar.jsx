@@ -4,7 +4,7 @@ import { Minus, Square, Copy, X } from 'lucide-react'
 const DRAG_STYLE = { WebkitAppRegion: 'drag' }
 const NO_DRAG_STYLE = { WebkitAppRegion: 'no-drag' }
 
-const TitleBar = ({ title = 'Intercocina' }) => {
+const TitleBar = ({ title = 'Intercocina', chiled = false }) => {
   const [isMaximized, setIsMaximized] = useState(false)
   const hasElectron = typeof window !== 'undefined' && !!window.api
 
@@ -27,7 +27,7 @@ const TitleBar = ({ title = 'Intercocina' }) => {
   const currentUrl = window.location.hash.substring(1)
   const isArticle = String(currentUrl).includes('/articles/')
   const handleClose = useCallback(() => {
-    if (isArticle) {
+    if (chiled) {
       window.api.close()
     } else {
       window.api.closeWindow()
