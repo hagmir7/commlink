@@ -1,21 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Col,
-  DatePicker,
-  Divider,
-  InputNumber,
-  Row,
-  Select,
-  Table,
-  Tag
-} from 'antd'
+import { Alert, Button, Checkbox, DatePicker, Divider, InputNumber, Select, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { api } from '../utils/api'
 
-const REGLEMENT_LABELS = {
+const PAYMENT_LABELS = {
   1: 'Espéce',
   2: 'Chéque',
   3: 'Virement',
@@ -24,31 +12,52 @@ const REGLEMENT_LABELS = {
   6: 'Lettre de Change'
 }
 
-const REGLEMENT_OPTIONS = Object.values(REGLEMENT_LABELS).map((label) => ({
+const PAYMENT_OPTIONS = Object.values(PAYMENT_LABELS).map((label) => ({
   value: label,
   label
 }))
 
-const getField = (item, name) => item[name] ?? item[name.charAt(0).toUpperCase() + name.slice(1)]
+const field = (item, name) => item?.[name] ?? item?.[name.charAt(0).toUpperCase() + name.slice(1)]
 
-const isTrue = (value) => value === true || value === 1 || value === '1'
+const asBoolean = (value) => value === true || value === 1 || value === '1'
 
-const formatMoney = (value) => {
-  if (value == null || !Number.isFinite(Number(value))) return '—'
+function asNumber(value) {
+  if (value == null || value === '') return null
 
-  return Number(value).toLocaleString('fr-FR', {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function formatMoney(value) {
+  const number = asNumber(value)
+
+  if (number == null) return '—'
+
+  return number.toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
 }
 
-const getErrorMessage = (error) => {
+function errorMessage(error) {
   const data = error.response?.data
 
   if (typeof data === 'string') return data
-  if (data?.errors) return Object.values(data.errors).flat().join(' ')
+
+  if (data?.errors) {
+    return Object.values(data.errors).flat().join(' ')
+  }
 
   return data?.message || data?.detail || data?.title || error.message || 'Une erreur est survenue.'
+}
+
+function assertSuccess(response) {
+  if (field(response.data, 'success') !== true) {
+    const error = new Error(field(response.data, 'message') || "L'enregistrement a échoué.")
+
+    error.response = response
+    throw error
+  }
 }
 
 function mapRows(data) {
@@ -59,7 +68,7 @@ function mapRows(data) {
   const ids = new Set()
 
   return data.map((item) => {
-    const no = Number(getField(item, 'no'))
+    const no = Number(field(item, 'no'))
 
     if (!Number.isSafeInteger(no) || no <= 0 || ids.has(no)) {
       throw new Error("Identifiant d'échéance invalide.")
@@ -67,23 +76,53 @@ function mapRows(data) {
 
     ids.add(no)
 
-    const date = getField(item, 'date')
+    const rawDate = field(item, 'date')
 
     return {
       key: `existing-${no}`,
       no,
-      date: date && dayjs(date).isValid() ? dayjs(date) : null,
-      pourcent: Number(getField(item, 'pourcent') ?? 0),
-      montant: Number(getField(item, 'montant') ?? 0),
-      devises: getField(item, 'devises') ?? null,
+      date: rawDate && dayjs(rawDate).isValid() ? dayjs(rawDate) : null,
+
+      pourcent: asNumber(field(item, 'pourcent')) ?? 0,
+
+      // Valeurs de saisie envoyées au backend.
+      montant: asNumber(field(item, 'montant')),
+      devises: asNumber(field(item, 'devises')),
+
+      // Valeurs calculées utilisées pour l'affichage.
+      montantCalcule: asNumber(field(item, 'montantCalcule')),
+      devisesCalcule: asNumber(field(item, 'devisesCalcule')),
+
       modeReglement:
-        getField(item, 'modeReglement') ||
-        REGLEMENT_LABELS[Number(getField(item, 'reglement'))] ||
+        field(item, 'modeReglement') ||
+        field(item, 'reglementLibelle') ||
+        PAYMENT_LABELS[Number(field(item, 'reglement'))] ||
         null,
-      equil: isTrue(getField(item, 'equil')),
-      regle: isTrue(getField(item, 'regle'))
+
+      equil: asBoolean(field(item, 'equil')),
+      regle: asBoolean(field(item, 'regle')),
+      isFirst: asBoolean(field(item, 'isFirst'))
     }
   })
+}
+
+function mapModel(data) {
+  const options = field(data, 'options')
+  const value = field(data, 'value')
+
+  if (!Array.isArray(options) || typeof value !== 'string') {
+    throw new Error('Réponse du modèle de règlement invalide.')
+  }
+
+  return {
+    value,
+    options: options.map((option) => ({
+      value: field(option, 'value'),
+      label: field(option, 'label'),
+      kind: field(option, 'kind'),
+      intitule: field(option, 'intitule') ?? null
+    }))
+  }
 }
 
 function editablePayload(rows) {
@@ -96,9 +135,9 @@ function editablePayload(rows) {
         throw new Error(prefix + 'renseignez une date.')
       }
 
-      const pourcent = Number(row.pourcent ?? 0)
+      const percent = asNumber(row.pourcent)
 
-      if (!Number.isFinite(pourcent) || pourcent < 0 || pourcent > 100) {
+      if (percent == null || percent < 0 || percent > 100) {
         throw new Error(prefix + 'le pourcentage doit être entre 0 et 100.')
       }
 
@@ -106,38 +145,39 @@ function editablePayload(rows) {
         throw new Error(prefix + 'sélectionnez un mode de règlement.')
       }
 
-      const percentageMode = pourcent > 0
+      const percentageMode = percent > 0
+      const amount = asNumber(row.montant)
+      const currencyAmount = asNumber(row.devises)
 
-      if (!percentageMode && (row.montant == null || !Number.isFinite(Number(row.montant)))) {
+      if (!percentageMode && amount == null) {
         throw new Error(prefix + 'renseignez un montant.')
       }
 
-      if (!percentageMode && row.devises != null && !Number.isFinite(Number(row.devises))) {
+      if (!percentageMode && row.devises != null && currencyAmount == null) {
         throw new Error(prefix + 'le montant en devises est invalide.')
       }
 
       return {
         no: row.no ?? null,
         date: row.date.format('YYYY-MM-DD'),
-        pourcent: percentageMode ? pourcent : 0,
-        montant: percentageMode ? null : Number(row.montant),
-        devises: percentageMode || row.devises == null ? null : Number(row.devises),
+        pourcent: percentageMode ? percent : 0,
+        montant: percentageMode ? null : amount,
+        devises: percentageMode ? null : currencyAmount,
         modeReglement: row.modeReglement || null
       }
     })
 }
 
-const balancePayload = (row) => ({
-  date: row.date?.format('YYYY-MM-DD') ?? null,
-  modeReglement: row.modeReglement || null
-})
-
-function assertSuccess(response) {
-  if (response.data?.success !== true) {
-    const error = new Error(response.data?.message || "L'enregistrement a échoué.")
-    error.response = response
-    throw error
+function balancePayload(row) {
+  return {
+    date: row.date?.format('YYYY-MM-DD') ?? null,
+    modeReglement: row.modeReglement || null
   }
+}
+
+// Comparer indépendamment de l'ordre des lignes retournées.
+function payloadSignature(payload) {
+  return JSON.stringify([...payload].sort((a, b) => (a.no ?? Infinity) - (b.no ?? Infinity)))
 }
 
 export default function EcheancierTab(props) {
@@ -154,11 +194,15 @@ function EcheancierEditor({
   netAPayer = null,
   netAPayerMAD = null,
   readOnly = false,
+
+  // Activer seulement pour un document en devise.
+  // Les montants disponibles restent affichés même si false.
   enableDevises = false
 }) {
   const [rows, setRows] = useState([])
+  const [model, setModel] = useState(null)
   const [selectedKeys, setSelectedKeys] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [ready, setReady] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -167,86 +211,93 @@ function EcheancierEditor({
 
   const alive = useRef(false)
   const busy = useRef(false)
+  const readyRef = useRef(false)
+  const dirtyRef = useRef(false)
   const rowsRef = useRef([])
   const baseline = useRef([])
-  const firstKey = useRef(null)
-  const newId = useRef(0)
   const saveTimer = useRef(null)
-  const reloadTimer = useRef(null)
-  const loadSequence = useRef(0)
   const saveRef = useRef(null)
+  const requestSequence = useRef(0)
+  const nextId = useRef(0)
+  const protectedKey = useRef(null)
 
   const endpoint = `documents/${encodeURIComponent(documentPiece || '')}/echeancier`
+
+  const modelEndpoint = `documents/${encodeURIComponent(documentPiece || '')}/modele-reglement`
 
   const replaceRows = useCallback((next) => {
     rowsRef.current = next
     setRows(next)
   }, [])
 
-  // Automatic GET retries only. Failed writes are never blindly retried.
-  const loadRows = useCallback(
-    async function loadRows() {
-      if (!documentPiece || !alive.current) return false
+  const markDirty = (value) => {
+    dirtyRef.current = value
+    setDirty(value)
+  }
 
-      clearTimeout(reloadTimer.current)
+  const loadData = useCallback(async () => {
+    if (!documentPiece || !alive.current) return false
 
-      const sequence = ++loadSequence.current
-      setLoading(true)
-      setReady(false)
+    const sequence = ++requestSequence.current
+    const params = documentType == null ? {} : { type: documentType }
 
-      try {
-        const response = await api.get(`documents/${encodeURIComponent(documentPiece)}/echeancier`)
+    readyRef.current = false
+    setReady(false)
+    setLoading(true)
 
-        const next = mapRows(response.data)
+    try {
+      const [rowsResponse, modelResponse] = await Promise.all([
+        api.get(`documents/${encodeURIComponent(documentPiece)}/echeancier`, { params }),
+        api.get(`documents/${encodeURIComponent(documentPiece)}/modele-reglement`, { params })
+      ])
 
-        if (!alive.current || sequence !== loadSequence.current) {
-          return false
-        }
+      const nextRows = mapRows(rowsResponse.data)
+      const nextModel = mapModel(modelResponse.data)
 
-        // Preserve the originally protected row even if its date changes
-        // and the server returns a different sort order.
-        if (!next.some((row) => row.key === firstKey.current)) {
-          firstKey.current = next[0]?.key ?? null
-        }
-
-        baseline.current = next
-        replaceRows(next)
-        setSelectedKeys([])
-        setDirty(false)
-        setReady(true)
-
-        return true
-      } catch (err) {
-        if (alive.current && sequence === loadSequence.current) {
-          setError(getErrorMessage(err))
-          setStatus('Connexion indisponible — nouvelle lecture automatique…')
-
-          reloadTimer.current = setTimeout(() => {
-            void loadRows()
-          }, 5000)
-        }
-
+      if (!alive.current || sequence !== requestSequence.current) {
         return false
-      } finally {
-        if (alive.current && sequence === loadSequence.current) {
-          setLoading(false)
-        }
       }
-    },
-    [documentPiece, replaceRows]
-  )
+
+      // Utiliser le marqueur serveur lorsqu'il est disponible.
+      protectedKey.current = nextRows.find((row) => row.isFirst)?.key ?? nextRows[0]?.key ?? null
+
+      baseline.current = nextRows
+      replaceRows(nextRows)
+      setModel(nextModel)
+      setSelectedKeys([])
+
+      dirtyRef.current = false
+      setDirty(false)
+
+      readyRef.current = true
+      setReady(true)
+
+      return true
+    } catch (err) {
+      if (alive.current && sequence === requestSequence.current) {
+        setError(errorMessage(err))
+        setStatus('Chargement impossible.')
+      }
+
+      return false
+    } finally {
+      if (alive.current && sequence === requestSequence.current) {
+        setLoading(false)
+      }
+    }
+  }, [documentPiece, documentType, replaceRows])
 
   useEffect(() => {
     alive.current = true
-    void loadRows()
+    void loadData()
 
     return () => {
       alive.current = false
-      loadSequence.current += 1
+      readyRef.current = false
+      requestSequence.current += 1
       clearTimeout(saveTimer.current)
-      clearTimeout(reloadTimer.current)
     }
-  }, [loadRows])
+  }, [loadData])
 
   useEffect(() => {
     if (!dirty && !saving) return undefined
@@ -257,7 +308,10 @@ function EcheancierEditor({
     }
 
     window.addEventListener('beforeunload', preventUnload)
-    return () => window.removeEventListener('beforeunload', preventUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', preventUnload)
+    }
   }, [dirty, saving])
 
   const hasPaidRows = rows.some((row) => row.regle)
@@ -265,42 +319,53 @@ function EcheancierEditor({
 
   const commitLocal = (next) => {
     replaceRows(next)
-    setDirty(true)
+    markDirty(true)
     setError('')
     setStatus('Modification en attente…')
 
     clearTimeout(saveTimer.current)
+
     saveTimer.current = setTimeout(() => {
       void saveRef.current?.()
     }, 900)
   }
 
-  const handleChange = (key, field, value) => {
+  const handleChange = (key, name, value) => {
     if (locked || busy.current) return
 
     const target = rowsRef.current.find((row) => row.key === key)
 
     if (!target || target.regle) return
 
-    // Sage owns the balancing amount and percentage.
-    if (
-      target.equil &&
-      (target.key !== firstKey.current || !['date', 'modeReglement'].includes(field))
-    ) {
+    // La date et le règlement de la ligne d'équilibrage sont modifiables.
+    // Son montant est calculé par Sage.
+    if (target.equil && !['date', 'modeReglement'].includes(name)) {
       return
     }
 
     const next = rowsRef.current.map((row) => {
       if (row.key !== key) return row
 
-      const updated = { ...row, [field]: value }
+      const updated = { ...row, [name]: value }
 
-      if (field === 'pourcent' && Number(value) > 0) {
+      if (name === 'pourcent' && Number(value) > 0) {
         updated.montant = 0
         updated.devises = null
+
+        // Ne pas afficher l'ancien résultat comme un nouveau calcul.
+        updated.montantCalcule = null
+        updated.devisesCalcule = null
       }
 
-      if (field === 'montant' || field === 'devises') {
+      if (name === 'montant') {
+        updated.pourcent = 0
+
+        // Le backend recalculera la devise à partir du montant.
+        updated.devises = null
+        updated.devisesCalcule = null
+      }
+
+      if (name === 'devises') {
         updated.pourcent = 0
       }
 
@@ -314,30 +379,31 @@ function EcheancierEditor({
     if (locked || busy.current) return
 
     const row = {
-      key: `new-${++newId.current}`,
+      key: `new-${++nextId.current}`,
       no: null,
       date: dayjs(),
       pourcent: 0,
       montant: null,
       devises: null,
+      montantCalcule: null,
+      devisesCalcule: null,
       modeReglement: null,
       equil: false,
-      regle: false
+      regle: false,
+      isFirst: false
     }
-
-    if (!firstKey.current) firstKey.current = row.key
 
     commitLocal([...rowsRef.current, row])
   }
+
+  const canDelete = (row) => !row.equil && !row.regle && row.key !== protectedKey.current
 
   const handleDelete = () => {
     if (locked || busy.current) return
 
     const selected = new Set(selectedKeys)
 
-    const next = rowsRef.current.filter(
-      (row) => row.key === firstKey.current || row.equil || row.regle || !selected.has(row.key)
-    )
+    const next = rowsRef.current.filter((row) => !selected.has(row.key) || !canDelete(row))
 
     if (next.length === rowsRef.current.length) return
 
@@ -346,31 +412,41 @@ function EcheancierEditor({
   }
 
   const saveAutomatically = async () => {
-    if (busy.current || !alive.current || !ready || readOnly) return
-    if (rowsRef.current.some((row) => row.regle)) return
+    if (
+      busy.current ||
+      !alive.current ||
+      !readyRef.current ||
+      readOnly ||
+      rowsRef.current.some((row) => row.regle)
+    ) {
+      return
+    }
 
     const current = rowsRef.current
     const original = baseline.current
 
     let payload
-    let previousPayload
+    let oldPayload
     let balanceChanges
 
     try {
-      // An incomplete new row stays local until it becomes valid.
       payload = editablePayload(current)
-      previousPayload = editablePayload(original)
+      oldPayload = editablePayload(original)
 
-      balanceChanges = current
-        .filter((row) => row.equil)
-        .filter((row) => {
-          const old = original.find((item) => item.no === row.no)
-          return old && JSON.stringify(balancePayload(row)) !== JSON.stringify(balancePayload(old))
-        })
+      balanceChanges = current.filter((row) => {
+        if (!row.equil) return false
+
+        const previous = original.find((item) => item.no === row.no)
+
+        return (
+          previous &&
+          JSON.stringify(balancePayload(row)) !== JSON.stringify(balancePayload(previous))
+        )
+      })
 
       for (const row of balanceChanges) {
         if (!row.date?.isValid()) {
-          throw new Error("Renseignez la date de la ligne d'équilibrage.")
+          throw new Error("Renseignez la date de l'échéance d'équilibrage.")
         }
       }
     } catch (err) {
@@ -378,25 +454,23 @@ function EcheancierEditor({
       return
     }
 
-    const scheduleChanged = JSON.stringify(payload) !== JSON.stringify(previousPayload)
+    const scheduleChanged = payloadSignature(payload) !== payloadSignature(oldPayload)
 
     if (!scheduleChanged && balanceChanges.length === 0) {
-      setDirty(false)
+      markDirty(false)
       setStatus('À jour')
       return
     }
 
     busy.current = true
     setSaving(true)
-    setStatus('Enregistrement…')
     setError('')
+    setStatus('Enregistrement…')
 
     const params = documentType == null ? {} : { type: documentType }
-
     let completedWrites = 0
 
     try {
-      // Only date/payment method for the protected balancing row.
       for (const row of balanceChanges) {
         const response = await api.patch(`${endpoint}/${row.no}`, balancePayload(row), { params })
 
@@ -406,15 +480,14 @@ function EcheancierEditor({
 
       if (scheduleChanged) {
         const response = await api.post(endpoint, payload, { params })
+
         assertSuccess(response)
         completedWrites += 1
       }
 
       if (!alive.current) return
 
-      setStatus('Actualisation…')
-
-      const refreshed = await loadRows()
+      const refreshed = await loadData()
 
       if (alive.current && refreshed) {
         setStatus('Enregistré automatiquement')
@@ -422,22 +495,18 @@ function EcheancierEditor({
     } catch (err) {
       if (!alive.current) return
 
+      setError(errorMessage(err))
+
       const data = err.response?.data
-      const uncertain =
+      const mustReload =
         completedWrites > 0 ||
         !err.response ||
         data?.reloadRequired ||
         data?.partialChangesPossible ||
         err.response?.status >= 500
 
-      setError(getErrorMessage(err))
-
-      if (uncertain) {
-        // Reconcile actual server state instead of creating duplicate rows
-        // by retrying a request with No = null.
-        setStatus('Vérification automatique des données enregistrées…')
-
-        const refreshed = await loadRows()
+      if (mustReload) {
+        const refreshed = await loadData()
 
         if (alive.current && refreshed) {
           setStatus('Données relues. Vérifiez les modifications restantes.')
@@ -447,14 +516,83 @@ function EcheancierEditor({
       }
     } finally {
       busy.current = false
-      if (alive.current) setSaving(false)
+
+      if (alive.current) {
+        setSaving(false)
+      }
     }
   }
 
   saveRef.current = saveAutomatically
 
-  const canEditDateAndMode = (row) =>
-    !locked && !row.regle && (!row.equil || row.key === firstKey.current)
+  const handleModelChange = async (value) => {
+    if (locked || busy.current || dirtyRef.current || value === model?.value) {
+      return
+    }
+
+    const option = model?.options.find((item) => item.value === value)
+
+    if (!option) return
+
+    clearTimeout(saveTimer.current)
+
+    busy.current = true
+    setSaving(true)
+    setError('')
+    setStatus('Application du modèle et génération des échéances…')
+
+    const params = documentType == null ? {} : { type: documentType }
+
+    try {
+      const response = await api.put(
+        modelEndpoint,
+        {
+          kind: option.kind,
+          intitule: option.intitule
+        },
+        { params }
+      )
+
+      assertSuccess(response)
+
+      if (!alive.current) return
+
+      // Le serveur a reconstruit les lignes : relire les nouveaux IDs,
+      // les dates et les montants calculés.
+      const refreshed = await loadData()
+
+      if (alive.current && refreshed) {
+        setStatus('Modèle appliqué et échéancier actualisé')
+      }
+    } catch (err) {
+      if (!alive.current) return
+
+      setError(errorMessage(err))
+
+      const data = err.response?.data
+
+      if (
+        !err.response ||
+        data?.reloadRequired ||
+        data?.partialChangesPossible ||
+        err.response?.status >= 500
+      ) {
+        const refreshed = await loadData()
+
+        if (alive.current && refreshed) {
+          setStatus('Données relues. Vérifiez le modèle et les échéances.')
+        }
+      } else {
+        setStatus('Le modèle n’a pas été appliqué.')
+      }
+    } finally {
+      busy.current = false
+
+      if (alive.current) {
+        setSaving(false)
+      }
+    }
+  }
 
   const columns = [
     {
@@ -468,7 +606,7 @@ function EcheancierEditor({
           format="DD/MM/YYYY"
           value={value}
           allowClear={false}
-          disabled={!canEditDateAndMode(row)}
+          disabled={locked || row.regle}
           onChange={(date) => handleChange(row.key, 'date', date)}
           className="w-full"
         />
@@ -478,7 +616,6 @@ function EcheancierEditor({
       title: '% TTC',
       dataIndex: 'pourcent',
       width: 90,
-      align: 'right',
       render: (value, row) => (
         <InputNumber
           size="small"
@@ -498,59 +635,67 @@ function EcheancierEditor({
       dataIndex: 'montant',
       width: 145,
       align: 'right',
-      render: (value, row) => (
-        <InputNumber
-          size="small"
-          variant="borderless"
-          controls={false}
-          step={0.01}
-          precision={2}
-          value={row.pourcent > 0 && !row.equil ? null : value}
-          placeholder={row.pourcent > 0 ? 'Calculé par Sage' : 'Montant'}
-          disabled={locked || row.equil}
-          onChange={(number) => handleChange(row.key, 'montant', number)}
-          className="!w-full"
-        />
-      )
+      render: (value, row) => {
+        const calculated = row.equil || row.pourcent > 0
+
+        return (
+          <InputNumber
+            size="small"
+            variant="borderless"
+            controls={false}
+            step={0.01}
+            precision={2}
+            value={calculated ? row.montantCalcule : value}
+            placeholder={calculated ? 'Calcul Sage…' : 'Montant'}
+            disabled={locked || row.equil}
+            onChange={(number) => handleChange(row.key, 'montant', number)}
+            className="!w-full"
+          />
+        )
+      }
     },
     {
       title: 'Devises',
       dataIndex: 'devises',
-      width: 125,
+      width: 145,
       align: 'right',
-      render: (value, row) => (
-        <InputNumber
-          size="small"
-          variant="borderless"
-          controls={false}
-          step={0.01}
-          precision={2}
-          value={value}
-          placeholder="—"
-          disabled={locked || row.equil || !enableDevises}
-          onChange={(number) => handleChange(row.key, 'devises', number)}
-          className="!w-full"
-        />
-      )
+      render: (value, row) => {
+        const calculated = row.equil || row.pourcent > 0
+
+        return (
+          <InputNumber
+            size="small"
+            variant="borderless"
+            controls={false}
+            step={0.01}
+            precision={2}
+            value={calculated ? row.devisesCalcule : value}
+            placeholder="—"
+            disabled={locked || row.equil || row.pourcent > 0 || !enableDevises}
+            onChange={(number) => handleChange(row.key, 'devises', number)}
+            className="!w-full"
+          />
+        )
+      }
     },
     {
       title: 'Mode de règlement',
       dataIndex: 'modeReglement',
-      width: 190,
+      width: 195,
       render: (value, row) => {
         const options =
-          value && !REGLEMENT_OPTIONS.some((option) => option.value === value)
-            ? [...REGLEMENT_OPTIONS, { value, label: value }]
-            : REGLEMENT_OPTIONS
+          value && !PAYMENT_OPTIONS.some((option) => option.value === value)
+            ? [...PAYMENT_OPTIONS, { value, label: value }]
+            : PAYMENT_OPTIONS
 
         return (
           <Select
             size="small"
             variant="borderless"
             value={value || undefined}
-            placeholder="Sélectionner"
             options={options}
-            disabled={!canEditDateAndMode(row)}
+            placeholder="Sélectionner"
+            disabled={locked || row.regle}
             onChange={(label) => handleChange(row.key, 'modeReglement', label)}
             className="w-full"
           />
@@ -560,14 +705,12 @@ function EcheancierEditor({
     {
       title: 'État',
       width: 135,
-      render: (_, row) =>
-        row.equil ? (
-          <Tag>Équilibrage</Tag>
-        ) : row.regle ? (
-          <Tag color="green">Réglée</Tag>
-        ) : (
-          <span>Non réglée</span>
-        )
+      render: (_, row) => {
+        if (row.regle) return <Tag color="green">Réglée</Tag>
+        if (row.equil) return <Tag>Équilibrage</Tag>
+
+        return <span>Non réglée</span>
+      }
     }
   ]
 
@@ -581,19 +724,28 @@ function EcheancierEditor({
         Échéancier
       </Divider>
 
-      <Row gutter={8} className="mb-4 items-center pb-3">
-        <Col span={5} className="text-right text-[13px] text-gray-600">
-          Modèle de règlement
-        </Col>
-        <Col span={10}>
-          <Select
-            size="small"
-            disabled
-            placeholder="Gestion du modèle dans Sage"
-            className="w-full"
-          />
-        </Col>
-      </Row>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <label className="text-[13px] text-gray-600">Modèle de règlement</label>
+
+        <Select
+          size="small"
+          value={model?.value}
+          options={model?.options ?? []}
+          loading={loading || saving}
+          disabled={locked || dirty || !model}
+          onChange={handleModelChange}
+          showSearch
+          optionFilterProp="label"
+          placeholder="Sélectionnez un modèle"
+          className="w-full sm:!w-[440px]"
+        />
+      </div>
+
+      {dirty && (
+        <div className="mb-2 text-xs text-amber-700">
+          Terminez les lignes en cours pour pouvoir changer de modèle.
+        </div>
+      )}
 
       {error && <Alert type="error" showIcon message={error} className="!mb-3" />}
 
@@ -606,11 +758,25 @@ function EcheancierEditor({
         />
       )}
 
+      {/* Bouton de récupération uniquement en cas d'échec de lecture. */}
+      {!ready && !loading && !saving && (
+        <Button
+          size="small"
+          className="mb-3 self-start"
+          onClick={() => {
+            setError('')
+            void loadData()
+          }}
+        >
+          Réessayer la connexion
+        </Button>
+      )}
+
       <div className="mb-2 min-h-5 text-xs text-gray-500" aria-live="polite">
-        {status}
+        {status || (loading ? 'Chargement…' : '')}
       </div>
 
-      <div className="mb-4 flex min-h-0 flex-1 gap-2">
+      <div className="mb-4 flex min-h-0 flex-1 flex-col gap-2 md:flex-row">
         <div className="min-w-0 flex-1">
           <Table
             size="small"
@@ -620,20 +786,20 @@ function EcheancierEditor({
             columns={columns}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 930, y: 320 }}
+            scroll={{ x: 950, y: 320 }}
             className="[&_.ant-table-cell]:!px-1 [&_.ant-table-cell]:!py-0.5"
             rowClassName={(row) => `text-[12px] ${row.equil ? 'bg-gray-50' : ''}`}
             rowSelection={{
               selectedRowKeys: selectedKeys,
               onChange: setSelectedKeys,
               getCheckboxProps: (row) => ({
-                disabled: locked || row.equil || row.regle || row.key === firstKey.current
+                disabled: locked || !canDelete(row)
               })
             }}
           />
         </div>
 
-        <div className="flex w-[110px] shrink-0 flex-col gap-2 pt-1">
+        <div className="flex shrink-0 gap-2 pt-1 md:w-[110px] md:flex-col">
           <Button size="small" disabled={locked} onClick={handleAdd}>
             Ajouter
           </Button>
@@ -659,14 +825,14 @@ function EcheancierEditor({
         </Divider>
 
         <div className="flex justify-end">
-          <div className="w-[300px] rounded-md border border-[#cce0f5] bg-[#eef5fb] p-3">
+          <div className="w-full rounded-md border border-[#cce0f5] bg-[#eef5fb] p-3 sm:w-[300px]">
             {[
               ['Total TTC', totalTTC],
               ['Acomptes', acomptes],
               ['Net à payer', netAPayer],
               ['Net à payer MAD', netAPayerMAD]
             ].map(([label, value]) => (
-              <div key={label} className="mb-1.5 flex justify-between text-gray-700">
+              <div key={label} className="mb-1.5 flex justify-between gap-4 text-gray-700">
                 <span>{label}</span>
                 <span>{formatMoney(value)}</span>
               </div>
