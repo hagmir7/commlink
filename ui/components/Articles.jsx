@@ -2,10 +2,26 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Empty, Input, Table, message } from 'antd'
 import { searchArticles } from '../api/article'
 import { useNavigate } from 'react-router-dom'
+import ArticleImagePreview from './ArticleImagePreview'
 
 const RESULT_COLUMNS = [
-  { key: 'reference', dataIndex: 'reference', title: 'Référence', width: 110 },
-  { key: 'designation', dataIndex: 'designation', title: 'Désignation' },
+  {
+    key: 'reference',
+    dataIndex: 'reference',
+    title: 'Référence',
+    width: 110,
+    render: (text, record) => (
+      <ArticleImagePreview reference={record.reference}>{text}</ArticleImagePreview>
+    )
+  },
+  {
+    key: 'designation',
+    dataIndex: 'designation',
+    title: 'Désignation',
+    render: (text, record) => (
+      <ArticleImagePreview reference={record.reference}>{text}</ArticleImagePreview>
+    )
+  },
   {
     key: 'prixVent',
     dataIndex: 'prixVent',

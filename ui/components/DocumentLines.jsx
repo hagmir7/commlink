@@ -18,6 +18,7 @@ import { findArticleByReference } from '../api/article'
 import useLineItems from '../hooks/useLineItems'
 import ArticleFilterRow from './ArticleFilterRow'
 import ArticleSearchModal from './ArticleSearchModal'
+import ArticleImagePreview from './ArticleImagePreview'
 import ColumnResizeHandle from './ColumnResizeHandle'
 import { api } from '../utils/api'
 import DesktopWindow from './ui/DesktopWindow'
@@ -899,10 +900,23 @@ const DocumentLines = forwardRef(function DocumentLines(
           return {
             ...base,
             render: (text, record) => (
-              <span className={record.indent ? 'pl-3' : ''}>
-                {record.indent ? '+' : ''}
-                {text}
-              </span>
+              <ArticleImagePreview reference={record.description ? null : record.articleRef}>
+                <span className={record.indent ? 'pl-3' : ''}>
+                  {record.indent ? '+' : ''}
+                  {text}
+                </span>
+              </ArticleImagePreview>
+            )
+          }
+        }
+
+        if (key === 'articleRef') {
+          return {
+            ...base,
+            render: (text, record) => (
+              <ArticleImagePreview reference={record.description ? null : record.articleRef}>
+                {renderCell(text)}
+              </ArticleImagePreview>
             )
           }
         }

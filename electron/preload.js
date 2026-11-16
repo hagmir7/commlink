@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('api', {
   // App
   getVersion: () => ipcRenderer.invoke('app:get-version'),
+  getProductImages: (reference) => ipcRenderer.invoke('products:get-images', reference),
 
   // Auth / session
   login: (data) => ipcRenderer.invoke('login', data),
@@ -13,14 +14,15 @@ contextBridge.exposeInMainWorld('api', {
   openShow: (payload) => ipcRenderer.invoke('openShow', payload),
   open: (preload) => ipcRenderer.invoke('open', preload),
   close: () => ipcRenderer.invoke('close'),
-  minimizeWindow: () => ipcRenderer.send('window-minimize'),
+  minimizeWindow: (piece) => ipcRenderer.send('window-minimize', piece),
+  isWindowMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
   restoreWindow: () => ipcRenderer.send('window-restore'),
   user: (payload) => ipcRenderer.invoke('user', payload),
   showError: (message) => ipcRenderer.invoke('show-error', message),
 
-  // Fired by loginWindow.js when the window is maximized/unmaximized.
+  // Fired by the main process when this window is maximized/unmaximized.
   // Returns an unsubscribe function so the renderer can clean up.
   onWindowMaximized: (callback) => {
     const listener = (_event, isMaximized) => callback(isMaximized)

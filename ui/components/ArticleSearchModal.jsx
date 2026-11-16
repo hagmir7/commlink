@@ -2,11 +2,27 @@ import { Button, Empty, Input, Table } from 'antd'
 import { useEffect, useState } from 'react'
 import { searchArticles } from '../api/article'
 import DesktopWindow from './ui/DesktopWindow'
+import ArticleImagePreview from './ArticleImagePreview'
 // import DesktopWindow from './DesktopWindow' // adjust import path to match your project
 
 const RESULT_COLUMNS = [
-  { key: 'articleRef', dataIndex: 'reference', title: 'Référence', width: 110 },
-  { key: 'designation', dataIndex: 'designation', title: 'Désignation' },
+  {
+    key: 'articleRef',
+    dataIndex: 'reference',
+    title: 'Référence',
+    width: 110,
+    render: (text, record) => (
+      <ArticleImagePreview reference={record.reference}>{text}</ArticleImagePreview>
+    )
+  },
+  {
+    key: 'designation',
+    dataIndex: 'designation',
+    title: 'Désignation',
+    render: (text, record) => (
+      <ArticleImagePreview reference={record.reference}>{text}</ArticleImagePreview>
+    )
+  },
   // { key: 'couleur', dataIndex: 'couleur', title: 'Couleur', width: 120 },
   { key: 'prixUnitaire', dataIndex: 'prixVent', title: 'P.U. HT', width: 90 }
 ]

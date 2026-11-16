@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, memo } from 'react'
+import { useEffect, useState, useCallback, memo } from 'react'
 import { Minus, Square, Copy, X } from 'lucide-react'
 
 const DRAG_STYLE = { WebkitAppRegion: 'drag' }
@@ -24,15 +24,13 @@ const TitleBar = ({ title = 'Intercocina', chiled = false }) => {
 
   const handleMinimize = useCallback(() => window.api.minimizeWindow(), [])
   const handleMaximize = useCallback(() => window.api.maximizeWindow(), [])
-  const currentUrl = window.location.hash.substring(1)
-  const isArticle = String(currentUrl).includes('/articles/')
   const handleClose = useCallback(() => {
     if (chiled) {
       window.api.close()
     } else {
       window.api.closeWindow()
     }
-  }, [currentUrl])
+  }, [chiled])
 
   if (!hasElectron) return null
 
@@ -57,7 +55,7 @@ const TitleBar = ({ title = 'Intercocina', chiled = false }) => {
           onClick={handleMinimize}
           aria-label="Minimize window"
           title="Minimize"
-          className={`w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200 ${isArticle ? 'hidden' : ''}`}
+          className="w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200"
         >
           <Minus size={11} />
         </button>
@@ -67,7 +65,7 @@ const TitleBar = ({ title = 'Intercocina', chiled = false }) => {
           onClick={handleMaximize}
           aria-label="Maximize window"
           title="Maximize"
-          className={`w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200 ${isArticle ? 'hidden' : ''}`}
+          className="w-10 h-full flex items-center justify-center text-gray-600 hover:bg-gray-200"
         >
           {isMaximized ? <Copy size={10} /> : <Square size={10} />}
         </button>

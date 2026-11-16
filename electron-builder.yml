@@ -3,6 +3,7 @@ productName: Comlink
 directories:
   buildResources: build
 files:
+  - '!product-images.local.json'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'

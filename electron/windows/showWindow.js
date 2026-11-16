@@ -1,89 +1,80 @@
-const { BrowserWindow, app, ipcMain, screen } = require('electron')
-const path = require('path')
+const { BrowserWindow, app, screen } = require('electron')
+const path = require('node:path')
 
 const isDev = process.env.NODE_ENV === 'development'
-
 let mainWindowReference = null
-let childWindow = null
-let minimizedWindow = null
-let childWindowNormalBounds = null
+
+// Each detail window owns its own minimized bar and lifecycle.
+const windows = new Map()
 
 const setMainWindow = (window) => {
   mainWindowReference = window
 }
 
-const closeMinimizedWindow = () => {
-  if (minimizedWindow && !minimizedWindow.isDestroyed()) {
-    minimizedWindow.close()
+const closeMinimizedWindow = (state) => {
+  const bar = state.bar
+  state.bar = null
+  if (bar && !bar.isDestroyed()) bar.close()
+}
+
+const restoreWindow = (state) => {
+  const win = state.window
+  if (!win.isDestroyed()) {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
   }
-  minimizedWindow = null
+  closeMinimizedWindow(state)
 }
 
 const createShowWindow = (data) => {
-  if (childWindow && !childWindow.isDestroyed()) {
-    childWindow.show()
-    childWindow.focus()
-    closeMinimizedWindow()
-    return childWindow
-  }
-
-  childWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: data.width ?? 1200,
     height: data.height ?? 700,
     titleBarStyle: 'hidden',
-    parent: mainWindowReference,
-    modal: true,
-    // alwaysOnTop: true,
+    parent:
+      mainWindowReference && !mainWindowReference.isDestroyed() ? mainWindowReference : undefined,
+    modal: false,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   })
+  const state = { window: win, bar: null }
+  windows.set(win, state)
 
   if (isDev) {
-    childWindow.loadURL(`http://localhost:5173/#${data.url}`)
+    win.loadURL(`http://localhost:5173/#${data.url}`)
   } else {
-    const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
-    childWindow.loadFile(indexPath, {
+    win.loadFile(path.join(app.getAppPath(), 'out/renderer', 'index.html'), {
       hash: data.url
     })
-    childWindow.setMenu(null)
+    win.setMenu(null)
   }
 
-  childWindow.on('closed', () => {
-    childWindow = null
-    childWindowNormalBounds = null
-    closeMinimizedWindow()
+  win.on('closed', () => {
+    windows.delete(win)
+    closeMinimizedWindow(state)
   })
-
-  return childWindow
+  return win
 }
 
-ipcMain.on('window-minimize', (event, piece) => {
-  if (!childWindow || childWindow.isDestroyed()) return
-
-  childWindowNormalBounds = childWindow.getBounds()
-  childWindow.hide()
-
-  if (minimizedWindow && !minimizedWindow.isDestroyed()) {
-    minimizedWindow.show()
-    minimizedWindow.focus()
+const minimizeWindow = (state, piece) => {
+  const win = state.window
+  if (state.bar && !state.bar.isDestroyed()) {
+    win.hide()
+    state.bar.show()
+    state.bar.focus()
     return
   }
 
-  const display = screen.getDisplayMatching(childWindowNormalBounds)
-  const { x, y, height } = display.workArea
-
-  const minimizedWidth = 360
-  const minimizedHeight = 38
-  const margin = 10
-
-  minimizedWindow = new BrowserWindow({
-    width: minimizedWidth,
-    height: minimizedHeight,
-    x: x + margin,
-    y: y + height - minimizedHeight - margin,
+  const { x, y, height } = screen.getDisplayMatching(win.getBounds()).workArea
+  const bar = new BrowserWindow({
+    width: 360,
+    height: 38,
+    x: x + 10,
+    y: y + height - 48,
     frame: false,
     resizable: false,
     movable: true,
@@ -95,57 +86,41 @@ ipcMain.on('window-minimize', (event, piece) => {
       nodeIntegration: false
     }
   })
-
-  const query = piece ? `piece=${piece}` : ''
-
+  state.bar = bar
+  win.hide()
+  const query = piece ? `piece=${encodeURIComponent(piece)}` : ''
   if (isDev) {
-    minimizedWindow.loadURL(`http://localhost:5173/#/minimized-document?${query}`)
+    bar.loadURL(`http://localhost:5173/#/minimized-document?${query}`)
   } else {
-    minimizedWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'), {
+    bar.loadFile(path.join(app.getAppPath(), 'out/renderer', 'index.html'), {
       hash: `/minimized-document?${query}`
     })
   }
-
-  minimizedWindow.on('closed', () => {
-    minimizedWindow = null
+  bar.on('closed', () => {
+    // Native close should restore only this bar's owner.
+    if (state.bar === bar) {
+      state.bar = null
+      if (!win.isDestroyed() && !win.isVisible()) restoreWindow(state)
+    }
   })
-})
-
-ipcMain.on('window-restore', () => {
-  if (!childWindow || childWindow.isDestroyed()) return
-
-  if (childWindowNormalBounds) {
-    childWindow.setBounds(childWindowNormalBounds)
-  }
-
-  childWindow.show()
-  childWindow.focus()
-  closeMinimizedWindow()
-})
-
-ipcMain.on('window-maximize', () => {
-  if (!childWindow || childWindow.isDestroyed()) return
-
-  childWindow.show()
-
-  if (childWindow.isMaximized()) {
-    childWindow.unmaximize()
-  } else {
-    childWindow.maximize()
-  }
-
-  childWindow.focus()
-  closeMinimizedWindow()
-})
-
-ipcMain.on('window-close', () => {
-  if (childWindow && !childWindow.isDestroyed()) {
-    childWindow.close()
-  }
-  closeMinimizedWindow()
-})
-
-module.exports = {
-  setMainWindow,
-  createShowWindow
 }
+
+const handleWindowControl = (win, action, piece) => {
+  const state = windows.get(win) || [...windows.values()].find((entry) => entry.bar === win)
+  if (!state) return false
+  const isBar = state.bar === win
+
+  if (action === 'close') {
+    // Let the owner's closed event clean up only its own minimized bar.
+    state.window.close()
+  } else if (action === 'restore' || (isBar && action === 'maximize')) {
+    restoreWindow(state)
+  } else if (action === 'minimize' && !isBar) {
+    minimizeWindow(state, piece)
+  } else {
+    return false
+  }
+  return true
+}
+
+module.exports = { setMainWindow, createShowWindow, handleWindowControl }

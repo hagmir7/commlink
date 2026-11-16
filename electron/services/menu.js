@@ -1,6 +1,5 @@
-const { app, Menu } = require('electron')
+const { Menu } = require('electron')
 const { createShowWindow } = require('../windows/showWindow')
-let showWindow = null
 
 function createMenu() {
   const template = [
@@ -104,25 +103,9 @@ function createMenu() {
   Menu.setApplicationMenu(menu)
 }
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-async function closeWindowIfOpen(win) {
-  if (win && !win.isDestroyed()) {
-    await new Promise((resolve) => {
-      win.once('closed', resolve)
-      win.close()
-    })
-  }
-}
-
 const handleOpenShow = async (url) => {
   try {
-    await closeWindowIfOpen(showWindow)
-    showWindow = createShowWindow({
+    const showWindow = createShowWindow({
       width: 900,
       height: 600,
       url
