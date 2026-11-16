@@ -13,8 +13,11 @@ asarUnpack:
   - resources/**
 win:
   executableName: Comlink
-  icon: build/icon.png
+  icon: build/icon.ico
 nsis:
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
