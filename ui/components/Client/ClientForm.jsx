@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Alert, Button, Spin, Tabs, message } from 'antd'
 import {
@@ -11,6 +11,7 @@ import {
 } from '../../api/client'
 import IdentificationTab from './IdentificationTab'
 import TarifsTab from './TarifsTab'
+import FreeFieldsTab from './FreeFieldsTab'
 import ParametresTab from './ParametresTab'
 import LivraisonsTab from './LivraisonsTab'
 
@@ -191,9 +192,9 @@ export default function ClientForm({ onSave, onCancel }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-64px)] flex-col border-b border-solid border-gray-300 bg-white">
-      {/* Content area - scrolls naturally with the page */}
-      <div className="flex-1 p-3 bg-gray-100">
+    <div className="mx-auto flex h-full min-h-0 flex-col overflow-hidden border-b border-solid border-gray-300 bg-white">
+      {/* Scroll tab content independently so the shared footer stays visible. */}
+      <div className="min-h-0 flex-1 overflow-y-auto bg-gray-100 p-3">
         <Tabs
           type="card"
           size="small"
@@ -210,33 +211,45 @@ export default function ClientForm({ onSave, onCancel }) {
             {
               key: 'tarifs',
               label: 'Tarifs',
-              children: <TarifsTab tarifs={tarifs} />
+              children: (
+                <TarifsTab key={effectiveCode || 'new'} code={effectiveCode} tarifs={tarifs} />
+              )
             },
             {
               key: 'livraisons',
               label: 'Livraisons',
-              children: <LivraisonsTab livraisons={livraisons} />
+              children: (
+                <LivraisonsTab
+                  key={effectiveCode || 'new'}
+                  code={effectiveCode}
+                  livraisons={livraisons}
+                />
+              )
             },
             { key: 'banques', label: 'Banques', disabled: true },
-            { key: 'champs', label: 'Champs libres', disabled: true },
+            {
+              key: 'champs',
+              label: 'Champs libres',
+              children: <FreeFieldsTab key={effectiveCode || 'new'} code={effectiveCode} />
+            },
             { key: 'solvabilite', label: 'Solvabilité', disabled: true },
             { key: 'agenda', label: 'Agenda', disabled: true },
             {
               key: 'parametres',
               label: 'Paramètres',
-              children: <ParametresTab parametres={parametres} />
+              children: (
+                <ParametresTab
+                  key={effectiveCode || 'new'}
+                  code={effectiveCode}
+                  parametres={parametres}
+                />
+              )
             }
           ]}
         />
       </div>
 
-      {/* 
-        Fixed Footer:
-        - mt-auto pushes it to the bottom if content is short.
-        - sticky bottom-0 keeps it pinned to the viewport when scrolling.
-        - z-50 ensures it stays above the content.
-      */}
-      <div className="sticky bottom-0 z-50 mt-auto flex shrink-0 items-center justify-end gap-2 border-t border-solid border-gray-300 bg-white px-3 py-2 shadow-[0_-2px_6px_rgba(0,0,0,0.05)]">
+      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-solid border-gray-300 bg-white px-3 py-2 shadow-[0_-2px_6px_rgba(0,0,0,0.05)]">
         <Button size="small" onClick={reset}>
           Nouveau
         </Button>
@@ -246,7 +259,7 @@ export default function ClientForm({ onSave, onCancel }) {
         <Button size="small" onClick={close}>
           Annuler
         </Button>
-      </div>
+      </footer>
     </div>
   )
 }

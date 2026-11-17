@@ -125,6 +125,10 @@ when the task explicitly calls for publishing a release.
   `node --test tests/showWindow.test.cjs`. Detail windows and their minimized bars
   have independent state in `electron/windows/showWindow.js`; opening or closing
   one detail window must preserve the others.
+- Client parameters autosave only edited writable fields, then reload the server
+  response. Keep explicit `false`, `0`, and empty strings; clearing a closing period
+  sends `1753-01-01` for both dates. Run
+  `node --test tests/clientParametres.test.cjs` for the PATCH and options contracts.
 - Exercise affected UI workflows when an Electron session and API are available.
   Native printing, WhatsApp, authentication, and business operations require
   their actual services or environment; a successful build does not verify them.

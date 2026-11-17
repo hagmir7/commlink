@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, DatePicker, Divider, InputNumber, Select, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { api } from '../utils/api'
+import DocumentTTCRecap from './DocumentTTCRecap'
 
 const PAYMENT_LABELS = {
   1: 'Espéce',
@@ -26,17 +27,6 @@ function asNumber(value) {
 
   const number = Number(value)
   return Number.isFinite(number) ? number : null
-}
-
-function formatMoney(value) {
-  const number = asNumber(value)
-
-  if (number == null) return '—'
-
-  return number.toLocaleString('fr-FR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
 }
 
 function errorMessage(error) {
@@ -189,10 +179,7 @@ export default function EcheancierTab(props) {
 function EcheancierEditor({
   documentPiece,
   documentType,
-  totalTTC = null,
-  acomptes = null,
-  netAPayer = null,
-  netAPayerMAD = null,
+  totals = null,
   readOnly = false,
 
   // Activer seulement pour un document en devise.
@@ -321,8 +308,6 @@ function EcheancierEditor({
     replaceRows(next)
     markDirty(true)
     setError('')
-    setStatus('Modification en attente…')
-
     clearTimeout(saveTimer.current)
 
     saveTimer.current = setTimeout(() => {
@@ -465,7 +450,6 @@ function EcheancierEditor({
     busy.current = true
     setSaving(true)
     setError('')
-    setStatus('Enregistrement…')
 
     const params = documentType == null ? {} : { type: documentType }
     let completedWrites = 0
@@ -486,12 +470,6 @@ function EcheancierEditor({
       }
 
       if (!alive.current) return
-
-      const refreshed = await loadData()
-
-      if (alive.current && refreshed) {
-        setStatus('Enregistré automatiquement')
-      }
     } catch (err) {
       if (!alive.current) return
 
@@ -741,12 +719,6 @@ function EcheancierEditor({
         />
       </div>
 
-      {dirty && (
-        <div className="mb-2 text-xs text-amber-700">
-          Terminez les lignes en cours pour pouvoir changer de modèle.
-        </div>
-      )}
-
       {error && <Alert type="error" showIcon message={error} className="!mb-3" />}
 
       {hasPaidRows && (
@@ -820,25 +792,7 @@ function EcheancierEditor({
           Autoriser le paiement en ligne
         </Checkbox>
 
-        <Divider orientation="left" plain>
-          Récapitulation Net à payer
-        </Divider>
-
-        <div className="flex justify-end">
-          <div className="w-full rounded-md border border-[#cce0f5] bg-[#eef5fb] p-3 sm:w-[300px]">
-            {[
-              ['Total TTC', totalTTC],
-              ['Acomptes', acomptes],
-              ['Net à payer', netAPayer],
-              ['Net à payer MAD', netAPayerMAD]
-            ].map(([label, value]) => (
-              <div key={label} className="mb-1.5 flex justify-between gap-4 text-gray-700">
-                <span>{label}</span>
-                <span>{formatMoney(value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <DocumentTTCRecap entete={totals} />
       </div>
     </div>
   )

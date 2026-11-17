@@ -192,9 +192,18 @@ export default function DocumentToolbar({
     onRefresh?.()
   }
 
-  const handleopnePied = useCallback((documentPiece) => {
-    window.api.open({ url: `/documents/valorisation/${documentPiece}` })
-  }, [])
+  const handleopnePied = useCallback(
+    (documentPiece) => {
+      if (!documentPiece) return
+      const params = new URLSearchParams({ documentType })
+      window.api.open({
+        url: `/documents/valorisation/${encodeURIComponent(documentPiece)}?${params}`,
+        width: 1000,
+        height: 800
+      })
+    },
+    [documentType]
+  )
 
   return (
     <>

@@ -160,7 +160,7 @@ export default function DesktopWindow({
 
       {/* Body — collapses when minimized */}
       {!minimized && (
-        <div className="max-h-[75vh] overflow-y-auto bg-white pb-2 text-[#37402F]">{children}</div>
+        <div className="max-h-[75vh] overflow-y-auto bg-white text-[#37402F]">{children}</div>
       )}
     </Modal>
   )

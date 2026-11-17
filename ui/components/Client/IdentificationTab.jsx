@@ -1,6 +1,6 @@
 import React from 'react'
 import { Checkbox } from 'antd'
-import { Row, Grid4, Panel, Section, Label } from './primitives'
+import { Row, Grid4, Panel, Section } from './primitives'
 
 const COMPTES_COLLECTIFS = [
   { value: '34210000', label: '34210000' },

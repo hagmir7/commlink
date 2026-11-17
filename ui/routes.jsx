@@ -73,6 +73,10 @@ export const router = createHashRouter([
           },
 
           {
+            path: '/clients/new',
+            element: <ShowClient />
+          },
+          {
             path: '/clients/:num',
             element: <ShowClient />
           }

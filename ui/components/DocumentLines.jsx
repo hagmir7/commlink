@@ -900,12 +900,10 @@ const DocumentLines = forwardRef(function DocumentLines(
           return {
             ...base,
             render: (text, record) => (
-              <ArticleImagePreview reference={record.description ? null : record.articleRef}>
-                <span className={record.indent ? 'pl-3' : ''}>
-                  {record.indent ? '+' : ''}
-                  {text}
-                </span>
-              </ArticleImagePreview>
+              <span className={record.indent ? 'pl-3' : ''}>
+                {record.indent ? '+' : ''}
+                {text}
+              </span>
             )
           }
         }

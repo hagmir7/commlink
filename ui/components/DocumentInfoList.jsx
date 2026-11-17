@@ -213,7 +213,7 @@ export default function DocumentInfoList({ open, onClose, docType, docNumber }) 
       onClose={onClose}
       width={520}
       bodyClassName="px-4 py-3"
-      title={`Info libre — ${docNumber}`}
+      title={`Informations libre — ${docNumber}`}
     >
       {loading && (
         <div className="flex justify-center py-10">
@@ -246,9 +246,9 @@ export default function DocumentInfoList({ open, onClose, docType, docNumber }) 
               const dirty = values[field.name] !== original[field.name]
               return (
                 <div key={field.name} className={wide ? 'col-span-2 w-full' : 'w-full'}>
-                  <label className="mb-0.5 flex items-center gap-1 text-[13px] font-medium text-[#5F7052]">
+                  <label className="mb-0.5 flex items-center gap-1 text-[13px] font-medium text-gray-700">
                     {field.name}
-                    {dirty && <span className="h-1.5 w-1.5 rounded-full bg-[#93A47C]" />}
+                    {dirty && <span className="h-1.5 w-1.5 rounded-full bg-green-500" />}
                   </label>
                   <FieldInput
                     field={field}
@@ -261,7 +261,7 @@ export default function DocumentInfoList({ open, onClose, docType, docNumber }) 
           </div>
 
           {/* Sticky action bar */}
-          <div className="sticky bottom-0 -mx-4 -mb-3 mt-3 flex items-center justify-between py-2 py-2 px-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-300 bg-gradient-to-t from-white to-gray-100 p-2">
             <span className="text-[12px]">
               {changeCount > 0
                 ? `${changeCount} modification${changeCount > 1 ? 's' : ''}`

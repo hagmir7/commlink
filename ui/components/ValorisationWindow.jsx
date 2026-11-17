@@ -16,6 +16,8 @@ import { Tag } from 'lucide-react'
 import TitleBar from './TitleBar'
 import { api } from '../utils/api'
 import EcheancierTab from './EcheancierTab'
+import DocumentTTCRecap from './DocumentTTCRecap'
+import { useParams, useSearchParams } from 'react-router-dom'
 
 // --- Helpers ---
 const SectionDivider = ({ children, className = '' }) => (
@@ -48,7 +50,11 @@ const menuItems = [
   { key: 'echeancier', label: 'Echéancier' }
 ]
 
-export default function ValorisationWindow({ heightClass = 'h-screen', piece = '25DE005440' }) {
+export default function ValorisationWindow({ heightClass = 'h-screen', piece: suppliedPiece }) {
+  const { piece: routePiece } = useParams()
+  const [searchParams] = useSearchParams()
+  const piece = suppliedPiece ?? routePiece
+  const documentType = searchParams.get('documentType') || 'DocumentTypeVenteDevis'
   const [activeTab, setActiveTab] = useState('pied')
   const [expeditions, setExpeditions] = useState([])
 
@@ -236,32 +242,7 @@ export default function ValorisationWindow({ heightClass = 'h-screen', piece = '
           className="mb-4"
         />
 
-        <SectionDivider>Récapitulation TTC</SectionDivider>
-        <div className="flex justify-end">
-          <div className="w-[300px] bg-[#eef5fb] border border-[#cce0f5] rounded-md p-3">
-            <div className="flex justify-between mb-1.5 text-gray-700">
-              <span>Total HT</span>
-              <span>{formatMoney(entete.do_TotalHT)}</span>
-            </div>
-            <div className="flex justify-between mb-1.5 text-gray-700">
-              <span>Total HT Net</span>
-              <span>{formatMoney(entete.do_TotalHTNet)}</span>
-            </div>
-            <div className="flex justify-between mb-1.5 text-gray-700">
-              <span>Valorisation</span>
-              <span>{formatMoney(entete.do_TotalTTC)}</span>
-            </div>
-            <div className="flex justify-between mb-1.5 text-gray-700">
-              <span>Ecart</span>
-              <span></span>
-            </div>
-            <Divider className="!my-2 !border-[#cce0f5]" />
-            <div className="flex justify-between font-medium text-gray-800">
-              <span>Total TTC</span>
-              <span>{formatMoney(entete.do_TotalTTC)}</span>
-            </div>
-          </div>
-        </div>
+        <DocumentTTCRecap entete={entete} />
       </>
     )
   }
@@ -277,7 +258,11 @@ export default function ValorisationWindow({ heightClass = 'h-screen', piece = '
     <>
       {/* <SectionDivider className="!mt-2">Echéancier</SectionDivider> */}
 
-      <EcheancierTab documentPiece={piece} documentType={'DocumentTypeVenteDevis'} />
+      <EcheancierTab
+        documentPiece={piece}
+        documentType={documentType}
+        totals={documentData?.entete}
+      />
     </>
   )
 

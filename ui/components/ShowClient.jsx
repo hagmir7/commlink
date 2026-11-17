@@ -1,13 +1,8 @@
-import React from 'react'
-import { useParams } from 'react-router-dom'
-import BackButton from './BackButton'
 import ClientForm from './Client/ClientForm'
 
 export default function ShowClient() {
-  const { num } = useParams()
   return (
-    <div>
-      {/* <BackButton /> */}
+    <div className="h-full min-h-0 overflow-hidden">
       <ClientForm />
     </div>
   )

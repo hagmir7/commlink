@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Empty, Input, Table, message } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Button, Empty, Input, Table, message } from 'antd'
 import { getClients } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 
@@ -48,7 +48,7 @@ export default function Clients() {
   }, [clients, search])
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-full flex-col gap-3">
       <Input.Search
         placeholder="Rechercher un client (Ref, intitulé, ville)"
         allowClear
@@ -74,6 +74,14 @@ export default function Clients() {
           onClick: () => navigate(`/clients/${record.code}`)
         })}
       />
+      <footer className="sticky bottom-0 z-10 mt-auto flex shrink-0 justify-end gap-2 border-t border-solid border-gray-300 bg-white px-3 py-2">
+        <Button size="small" type="primary" onClick={() => navigate('/clients/new')}>
+          Nouveau
+        </Button>
+        <Button size="small" onClick={() => window.api?.closeWindow()}>
+          Annuler
+        </Button>
+      </footer>
     </div>
   )
 }
