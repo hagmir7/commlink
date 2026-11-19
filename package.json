@@ -1,6 +1,6 @@
 {
   "name": "Comlink",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Comlink is an interface of sage",
   "main": "electron/main.js",
   "author": "intercocina.com",
