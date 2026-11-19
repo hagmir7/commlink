@@ -1,47 +1,7 @@
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
-const { autoUpdater } = require('electron-updater')
-
 const isDev = process.env.NODE_ENV === 'development'
 
-autoUpdater.autoDownload = false
-autoUpdater.autoInstallOnAppQuit = true
-
-// ---------------------------------------------------------------------------
-// Auto updater (registered once, not on every createLoginWindow() call)
-// ---------------------------------------------------------------------------
-
-let updaterInitialized = false
-
-function initUpdater() {
-  if (updaterInitialized) return
-  updaterInitialized = true
-
-  autoUpdater.on('update-available', (info) => {
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Mise à jour disponible',
-      message: `Une nouvelle mise à jour est disponible.\nVersion actuelle : ${app.getVersion()}`,
-      detail: `La version ${info.version} est en cours de téléchargement...`
-    })
-
-    autoUpdater.downloadUpdate().catch((error) => {
-      dialog.showErrorBox('Update Error', error?.stack || String(error))
-    })
-  })
-
-  autoUpdater.on('error', (error) => {
-    dialog.showErrorBox('Update Error', error == null ? 'unknown' : error.stack || error.toString())
-  })
-
-  if (process.platform === 'win32' || process.env.APPIMAGE) {
-    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-      console.error('Update check failed:', error)
-    })
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Login window
 // ---------------------------------------------------------------------------
 
@@ -69,8 +29,6 @@ function createLoginWindow() {
   } else {
     const indexPath = path.join(app.getAppPath(), 'out/renderer', 'index.html')
     loginWindow.loadFile(indexPath, { hash: 'login' })
-
-    initUpdater()
   }
 
   loginWindow.on('closed', () => {

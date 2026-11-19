@@ -11,6 +11,7 @@ import '@fontsource/inter/400-italic.css' // Specify weight and style
 
 import { router } from './routes'
 import { AuthProvider } from './contexts/AuthContext'
+import UpdateProgress from './components/UpdateProgress'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')).render(
           locale={frFR}
         >
           <RouterProvider router={router} />
+          <UpdateProgress />
         </ConfigProvider>
       </Suspense>
     </AuthProvider>

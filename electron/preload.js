@@ -3,6 +3,12 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('api', {
   // App
   getVersion: () => ipcRenderer.invoke('app:get-version'),
+  getUpdateState: () => ipcRenderer.invoke('updater:get-state'),
+  onUpdateState: (callback) => {
+    const listener = (_event, state) => callback(state)
+    ipcRenderer.on('updater:state', listener)
+    return () => ipcRenderer.removeListener('updater:state', listener)
+  },
   getProductImages: (reference) => ipcRenderer.invoke('products:get-images', reference),
 
   // Auth / session

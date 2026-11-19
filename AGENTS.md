@@ -125,6 +125,11 @@ when the task explicitly calls for publishing a release.
   `node --test tests/showWindow.test.cjs`. Detail windows and their minimized bars
   have independent state in `electron/windows/showWindow.js`; opening or closing
   one detail window must preserve the others.
+- Auto-updates initialize once at app startup in `electron/services/updater.js`.
+  The preload exposes a current-state snapshot and a subscription for
+  `ui/components/UpdateProgress.jsx`. Keep downloads and installation in Electron;
+  automatic checks run only in packaged supported builds. Run
+  `node --test tests/updater.test.cjs` for the updater lifecycle checks.
 - Client parameters autosave only edited writable fields, then reload the server
   response. Keep explicit `false`, `0`, and empty strings; clearing a closing period
   sends `1753-01-01` for both dates. Run

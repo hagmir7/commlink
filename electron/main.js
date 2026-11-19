@@ -11,6 +11,7 @@ const { validatePdfUrl, downloadPdf, removePdf } = require('./services/pdf')
 const { assertKnownPrinter, printPdf } = require('./services/print')
 const whatsapp = require('./services/whatsapp')
 const { createMenu } = require('./services/menu.js')
+const { initUpdater } = require('./services/updater')
 
 // ---------------------------------------------------------------------------
 // State
@@ -303,6 +304,7 @@ if (gotSingleInstanceLock) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId(APP_ID)
     createMenu()
+    initUpdater()
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
